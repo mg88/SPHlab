@@ -32,11 +32,13 @@ classdef sph_IO < handle
               obj.plotstyle     = obj_scen.plotstyle;
         end
         %% ToDo
-        function obj_scen = read(~,filename)
+        function obj_scen = read(obj,filename)
             disp(['read ',filename]);
-            obj_scen.Xj = [1,1];
-            obj_scen.Omega= [1,1];
-            disp('not finished');
+
+            filename='in-hvi.h5';
+            time = 0;
+            mat2h5(obj,filename,time)
+            error('not finished');
         end
         %%
         function initialize(obj)
@@ -100,7 +102,7 @@ classdef sph_IO < handle
             data = obj.obj_particles;
             nplot = length(obj.plotstyle);
             iplot = 1;
-            if ~isempty(strfind(obj.plotstyle,'p'));
+            if ~isempty(strfind(obj.plotstyle,'x'));
                 subplot(nplot,1,iplot)
                 plot(data.Xj(data.Iin),0,'bo',data.Xj(data.Iboun),zeros(size(data.Iboun,1),1),'ko');
                 title(['position, t=',num2str(time),' N= ',num2str(data.N)])
@@ -114,13 +116,13 @@ classdef sph_IO < handle
                 iplot = create_a_supplot_1d(obj,data.pj,'pressure',time,nplot,iplot);
             end
             if ~isempty(strfind(obj.plotstyle,'d'));
-                iplot = create_a_supplot_1d(obj,data.Rhoj,'density',time,nplot,iplot);
+                iplot = create_a_supplot_1d(obj,data.rhoj,'density',time,nplot,iplot);
             end
             if ~isempty(strfind(obj.plotstyle,'f'));     
                 subplot(nplot,1,iplot)
-                bar(data.Xj,[data.F_int,data.F_diss,data.F_ST]); title('forces')
+                bar(data.Xj,[data.F_int,data.F_diss,data.F_diss_art,data.F_ST]); title('forces')
                 xlim([0 data.Omega(1)]);
-                legend('int','diss','st');
+                legend('int','diss','diss_art','st');
             end
             drawnow
         end
@@ -273,14 +275,8 @@ classdef sph_IO < handle
             drawnow;
         end
         %%
-        function scatterPoints = transparentScatter(~, x,y,z,sizeOfCirlce,opacity)
-            % usage example:
-            % scatterPoints = transparentScatter(randn(5000,1),randn(5000,1),0.1,0.05);
-            % set(scatterPoints,'FaceColor',[1,0,0]);
-               % defaultColors = get(0,'DefaultAxesColorOrder');
-                assert(size(x,2)  == 1 && size(y,2)  == 1 , 'x and y should be column vectors');
+        function transparentScatter(~, x,y,z,sizeOfCirlce,opacity)
                 t= 0:pi/10:2*pi;
-
                 rep_x = repmat(x',[size(t,2),1]);
                 rep_y = repmat(y',[size(t,2),1]);
                 rep_z = repmat(z',[size(t,2),1]);
@@ -289,10 +285,6 @@ classdef sph_IO < handle
                 scatterPoints = patch((sizeOfCirlce*sin(rep_t)+ rep_x),...
                                       (sizeOfCirlce*cos(rep_t)+rep_y),...
                                        rep_z,'edgecolor','none');
-                                   
-%                 scatterPoints = patch((sizeOfCirlce*sin(rep_t)+ rep_x),...
-%                                       (sizeOfCirlce*cos(rep_t)+rep_y),...
-%                                        defaultColors(1,:),'edgecolor','none');
                 alpha(scatterPoints,opacity);
 
         end
@@ -300,24 +292,52 @@ classdef sph_IO < handle
 
              
         %ToDo:
-        function mat2h5(obj)
-         Xj=h5read('in-hvi.h5','/0/x')
-            h5disp('in-hvi.h5')
-          
-        %% in
-        % Gamma, Gmod, S, Y0, c, c0, e, m, p, phi, rho, rho0, 
-        % tauXX, tauXY, tauYY,
-        % u, v, x,y
-            
-        %% out
-        % Gamma, Gmod, O, S, Vol, Y0, c, c0, e, eh, epsdotXX, epsdotXY,
-        % et, h , m, nn, p ,phi, rho, rho0, rhoh, rhot, rotdotXY,
-        % stationary, t, tauXX, tauXXpl, tauXXrho2, tauXY, tauXYpl,
-        % tauXYrho2, tauYY, tauYYpl,tauYYrho2, taudotXX, taudotXY, 
-        % taudotYY, tmp, u, uh, ups, ut, v, vh, vt, x ,y , 
-        
-            
+        function mat2h5(~,filename,time)
+  
+                function x=readVariable(x_name,filename,time)
+                     x=h5read(filename,['/',time,'/',x_name]);            
+                end
+            time_str = num2str(time);
+             
+
+            Gamma = readVariable('Gamma',filename,time_str);
+            Gmod = readVariable('Gmod',filename,time_str);
+            S = readVariable('S',filename,time_str);
+            Y0 = readVariable('Y0',filename,time_str);
+            c = readVariable('c',filename,time_str);
+            c0 = readVariable('c0',filename,time_str);
+            e = readVariable('e',filename,time_str);
+            m = readVariable('m',filename,time_str);
+            p = readVariable('p',filename,time_str);
+            phi = readVariable('phi',filename,time_str);
+            rho = readVariable('rho',filename,time_str);
+            rho0 = readVariable('rho0',filename,time_str);
+            tauXX = readVariable('tauXX',filename,time_str);
+            tauXY = readVariable('tauXY',filename,time_str);
+            tauYY = readVariable('tauYY',filename,time_str);
+            u = readVariable('u',filename,time_str);
+            v = readVariable('v',filename,time_str);
+            x = readVariable('x',filename,time_str);
+            y = readVariable('y',filename,time_str);
+
+            keyboard
+
+            %% in
+            % Gamma, Gmod, S, Y0, c, c0, e, m, p, phi, rho, rho0, 
+            % tauXX, tauXY, tauYY,
+            % u, v, x,y
+
+            %% out
+            % Gamma, Gmod, O, S, Vol, Y0, c, c0, e, eh, epsdotXX, epsdotXY,
+            % et, h , m, nn, p ,phi, rho, rho0, rhoh, rhot, rotdotXY,
+            % stationary, t, tauXX, tauXXpl, tauXXrho2, tauXY, tauXYpl,
+            % tauXYrho2, tauYY, tauYYpl,tauYYrho2, taudotXX, taudotXY, 
+            % taudotYY, tmp, u, uh, ups, ut, v, vh, vt, x ,y , 
+
+
         end
+        
+
     end
 
     

@@ -7,11 +7,11 @@ classdef sph_scenario < handle
         %% simulation parameter
         dim         % 1 or 2
         dx          % initial particle distance
-        dt          % timestep (fixed)
+        omega       % savetyfactor for timestepping
         tend        % Simulation time
         eta         % h=eta*dx
         eta2        % eta2*h is the cutoff radius 
-
+        kernel      % M4 | gauss
         %% geometry
         Omega       % domain
         obj_geo     % geometry class
@@ -23,7 +23,8 @@ classdef sph_scenario < handle
        
         %% material parameter
         rho0     % relative density
-        Ca       % Cauchy number (dependend on the buld modulus Ca=rho(x,0)*u0^2/K(x) )
+        c0       % speed of sound
+        %Ca       % Cauchy number (dependend on the buld modulus Ca=rho(x,0)*u0^2/K(x) )
         beta     % for surface tension
         mu       % for dissipation
         
@@ -39,7 +40,7 @@ classdef sph_scenario < handle
         
         % some plotting properties
         plot_dt         % plotting timestep
-        plotstyle       % 1D: p-position, v-velocity, p-pressure, d-density, f-forces
+        plotstyle       % 1D: x-position, v-velocity, p-pressure, d-density, f-forces
                         % 2D: scatter | trisurf | patches  
         %movie settings                        
         save_as_movie
@@ -58,6 +59,10 @@ classdef sph_scenario < handle
            obj.obj_geo = sph_geometry();
            obj.plotstyle = 'scatter';
            obj.read_file = false;
+           obj.kernel = 'M4'; %standard kernel
+           obj.omega  = 0.5;
+           obj.beta = 0;
+           obj.mu   = 0;
         end       
         
         function checkIfAlreadySet(obj)

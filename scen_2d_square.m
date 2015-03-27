@@ -5,22 +5,19 @@ close all; clear; clc;
 ps = sph_scenario();
 
 ps.dim     = 2;
-ps.dx      = 5e-3;
-ps.dt      = 5e-5;   
+ps.dx      = 1e-2;
 ps.tend    = 2e-1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
 
 %IO
-ps.plot_dt = 100*ps.dt;   
+ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
 
 %% material parameter
 ps.rho0 = 1.0;     %relativ density
-ps.Ca   = 1.7e-2;   %Cauchy number (dependend on the buld modulus Ca=rho(x,0)*u0^2/K(x) )     K    = 73e9; bulk modulus 
-ps.beta = 0;    %for surface tension
-ps.mu   = 1;    %for dissipation
+ps.c0   = 10;
 
 %% domain
 ps.Omega = [1,1]; 
@@ -35,9 +32,9 @@ ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                            
 
 %set rho0
-N        =size(ps.Iin,1);
-ps.rho0 =ones(N,1);
-ps.rho0(floor(N/2)-100)=1.0001;  % peak in the center
+N        = size(ps.Iin,1);
+ps.rho0  = ones(N,1);
+ps.rho0(floor(N/2)-100) = 2;  % peak in the center
 
 %% -----------------------------------------------------
 

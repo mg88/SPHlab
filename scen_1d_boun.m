@@ -6,21 +6,19 @@ ps = sph_scenario();
 
 ps.dim     = 1;
 ps.dx      = 1e-3;
-ps.dt      = 0.0001;   
 ps.tend    = 1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
 
 %IO
-ps.plot_dt = 100*ps.dt;   
+ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
 ps.plotstyle = 'vd';
 
  %% material parameter
 ps.rho0 = 1;     %relativ density
-ps.Ca   = 1.7e-2;   %Cauchy number (dependend on the buld modulus Ca=rho(x,0)*u0^2/K(x) )
-ps.beta = 0;    %for surface tension
-ps.mu   = 0.5;%3.5;    %for dissipation
+ps.c0   = 10; 
+
 
 %% domain         
 ps.Omega = 1; 
