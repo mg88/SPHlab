@@ -20,7 +20,8 @@ ps.rho0 = 1;     %relativ density
 ps.c0   = 10;
 
 %% domain         
-ps.Omega = [1,0.5]; 
+ps.Omega = [0,1  ;  %x
+            0,0.5]; %y
 ps.obj_geo = sph_geometry();
 
 
@@ -42,34 +43,33 @@ ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 % right
 lowerleftcorner1 = [interface+ps.dx,h1];
 upperrightcorner1= [ r,h2];
-v0    =[0,0];
-noise = 0;
+v0    = [0,0];
 I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                            
 %% boundary
 %top
-startpoint = [0,h1-ps.dx];
-endpoint   = [1,h1-ps.dx];
-v0   = [0,0];
-noise = 0;
-layer = 1;
-I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
-    v0,ps.dx,layer,noise);   
-ps.Iboun=[ps.Iboun;I_new];
-ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
-
- %bottom
-startpoint = [0,h2+ps.dx];
-endpoint   = [1,h2+ps.dx];
-v0   = [0,0];
-noise = 0;
-layer = 1;
-I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
-    v0,ps.dx,layer,noise);   
-ps.Iboun=[ps.Iboun;I_new];
-ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
+% startpoint = [0,h1-ps.dx];
+% endpoint   = [1,h1-ps.dx];
+% v0   = [0,0];
+% noise = 0;
+% layer = 1;
+% I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
+%     v0,ps.dx,layer,noise);   
+% ps.Iboun=[ps.Iboun;I_new];
+% ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
+% 
+%  %bottom
+% startpoint = [0,h2+ps.dx];
+% endpoint   = [1,h2+ps.dx];
+% v0   = [0,0];
+% noise = 0;
+% layer = 1;
+% I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
+%     v0,ps.dx,layer,noise);   
+% ps.Iboun=[ps.Iboun;I_new];
+% ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 
 
 %% -----------------------------------------------------

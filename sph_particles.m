@@ -53,7 +53,6 @@ classdef sph_particles < handle
         Iboun
         Imaterial
         %Material property 
-%        Ca
         cj0         
         cj
         beta
@@ -107,13 +106,12 @@ classdef sph_particles < handle
             obj.dim   = size(obj.Xj,2);
 
             obj.rho0j = ones(obj.N,1).*obj_scen.rho0;            
-            obj.rhoj = obj.rho0j;
+            obj.rhoj  = obj.rho0j;
             obj.cj0   = ones(obj.N,1).*obj_scen.c0;
             obj.cj    = obj.cj0;
             
             obj.beta = obj_scen.beta;
             obj.mu   = obj_scen.mu;
-            %obj.Ca   = obj_scen.Ca;            
             
             % stimmt das?
             obj.Mj   = obj.rhoj.*obj_scen.obj_geo.V0particle;    
@@ -175,7 +173,7 @@ classdef sph_particles < handle
                     tic    
                     %disp(['tmp: ',num2str(obj.tmp)]);
                 end
-                icount = icount +1;                    
+                icount = icount +1;     
             end
             obj.IO.finalize();
             toc(ttic)
@@ -214,18 +212,27 @@ classdef sph_particles < handle
         function initial_search_neighbours(obj) %upper right and lower left cells are not included
             
             %% create cell structure
-            obj.Nc = floor(obj.Omega/obj.Rt);
+            obj.Nc = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rt);
             if obj.dim ==1
-                obj.cell_of_j = floor((ones(obj.N,1)*obj.Nc./obj.Omega) .* obj.Xj)+1; %in which sector is the particle
+                obj.cell_of_j = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle
                 cellshift  = 1;
                 Ncell_search = obj.Nc-1;
             else
-                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc./obj.Omega) .* obj.Xj)+1; %in which sector is the particle
-                obj.cell_of_j = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(2));    %convert to 1d counting
-                cellshift = [1,obj.Nc(2)-1,obj.Nc(2),obj.Nc(2)+1]; %upper-left side
-                Ncell_search = (obj.Nc(1)*obj.Nc(2) - (obj.Nc(2)+1));
+                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle
+                obj.cell_of_j = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
+                cellshift = [1,obj.Nc(1)-1,obj.Nc(1),obj.Nc(1)+1]; %upper-left side
+                Ncell_search = (obj.Nc(1)*obj.Nc(2) - (obj.Nc(1)+1));
             end
             %obj.Kcells=sparse(c1d,1:obj.N,1);              %matrix includes a 1-entry if a particle (colum) is in a cell (row)            
+            
+            if any(obj.cell_of_j > Ncell_search)
+                %keyboard
+                error(' - particles not in cell structure! - ')
+            end
             
             %% create connectivity list:
             obj.pij=[];
@@ -256,7 +263,6 @@ classdef sph_particles < handle
                     end
                 end    
             end
-            
             %% create adjacency matrix nodes <-> edges
             obj.AedgesXj = sparse(obj.N,size(obj.pij,1));
             for kk = 1:obj.N
@@ -280,21 +286,21 @@ classdef sph_particles < handle
            else
                switch jshift
                    case 1 %right
-                        Ashift =  1+[obj.Nc,0,-obj.Nc(2)];
+                        Ashift =  1+[obj.Nc(1),0,-obj.Nc(1)];
                    case -1 %left
-                        Ashift = -1+[obj.Nc,0,-obj.Nc(2)];
-                   case obj.Nc(2)%up
-                        Ashift = obj.Nc(2)+[1,0,-1];
-                   case obj.Nc(2)+1 % upper right
-                        Ashift = [-obj.Nc(2)+1,1,1+obj.Nc(2),obj.Nc(2),obj.Nc(2)-1];
-                   case obj.Nc(2)-1 % upper left
-                       Ashift = [-obj.Nc(2)-1,-1,-1+obj.Nc(2),obj.Nc(2),obj.Nc(2)+1];
-                   case -obj.Nc(2) %down
-                        Ashift = -obj.Nc(2)+[1,0,-1];
-                   case -obj.Nc(2)-1 % down left
-                        Ashift = [-obj.Nc(2)-1,-obj.Nc(2),-obj.Nc(2)+1,-1,obj.Nc(2)-1];
-                   case -obj.Nc(2)+1 % down right
-                        Ashift = [-obj.Nc(2)-1,-obj.Nc(2),-obj.Nc(2)+1,+1,obj.Nc(2)+1];
+                        Ashift = -1+[obj.Nc(1),0,-obj.Nc(1)];
+                   case obj.Nc(1)%up
+                        Ashift = obj.Nc(1)+[1,0,-1];
+                   case obj.Nc(1)+1 % upper right
+                        Ashift = [-obj.Nc(1)+1,1,1+obj.Nc(1),obj.Nc(1),obj.Nc(1)-1];
+                   case obj.Nc(1)-1 % upper left
+                       Ashift =  [-obj.Nc(1)-1,-1,-1+obj.Nc(1),obj.Nc(1),obj.Nc(1)+1];
+                   case -obj.Nc(1) %down
+                        Ashift = -obj.Nc(1)+[1,0,-1];
+                   case -obj.Nc(1)-1 % down left
+                        Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,-1,obj.Nc(1)-1];
+                   case -obj.Nc(1)+1 % down right
+                        Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,+1,obj.Nc(1)+1];
                    otherwise
                         error('A particel skipped a cell!')
                end
@@ -303,13 +309,29 @@ classdef sph_particles < handle
         %%
         function update_neighbours (obj) 
             %% create cell structure
-            if obj.dim ==1
-                cell_of_j_new = floor((ones(obj.N,1)*obj.Nc./obj.Omega) .* obj.Xj)+1; %in which sector is the particle
+            if obj.dim == 1
+                cell_of_j_new = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle      
+                if any(cell_of_j_new > obj.Nc)  || any(cell_of_j_new < 0)
+                    %keyboard
+                    error(' - particles not in cell structure anymore! - ')
+                end
+           
             else
-                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc./obj.Omega) .* obj.Xj)+1; %in which sector is the particle
-                cell_of_j_new = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(2));    %convert to 1d counting
+                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle
+                cell_of_j_new = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
+                if any(cell_of_j_new > obj.Nc(1)*obj.Nc(2))  || any(cell_of_j_new < 0)
+                    %keyboard
+                    error(' - particles not in cell structure anymore! - ')
+                end
             end
-                  
+              
+                        
+
+            
             cell_shift_of_j = cell_of_j_new - obj.cell_of_j;
             j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0
                   
@@ -612,7 +634,7 @@ classdef sph_particles < handle
         end
         %%
         function checkIfInDomain(obj)
-            if (any(any(obj.Xj)<0) || any(any( ones(obj.N,1)*obj.Omega - obj.Xj <0)))
+            if (any(any(obj.Xj-  ones(obj.N,1)* obj.Omega(:,1)'<0)) || any(any( ones(obj.N,1)*obj.Omega(:,2)' - obj.Xj <0)))
                 error('some points are out of the domain');
             end
         end              

@@ -30,7 +30,7 @@ ps.beta = 0;    %for surface tension
 ps.mu   = 0;    %for dissipation
 
 %% domain         
-ps.Omega = 0.5;  %upper right corner  lower-left ist zero: [0,Omega(1)]x[0,Omega(2)]
+ps.Omega = [-0.2,0.5]; 
 ps.obj_geo = sph_geometry();
 
 
@@ -38,8 +38,8 @@ ps.obj_geo = sph_geometry();
 
 %left
 leftpoint = 0.22;
-rightpoint= 0.1;
-v0   = 2;
+rightpoint= -0.2;
+v0   = -2;
 I_new = add_line1d(ps.obj_geo,leftpoint,rightpoint,v0,ps.dx);
 
 ps.Iin=[ps.Iin;I_new];

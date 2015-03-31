@@ -13,7 +13,7 @@ classdef sph_scenario < handle
         eta2        % eta2*h is the cutoff radius 
         kernel      % M4 | gauss
         %% geometry
-        Omega       % domain
+        Omega       % domain  [x_left, x_right]^n
         obj_geo     % geometry class
         
         %% indices domain

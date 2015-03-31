@@ -31,15 +31,6 @@ classdef sph_IO < handle
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plotstyle     = obj_scen.plotstyle;
         end
-        %% ToDo
-        function obj_scen = read(obj,filename)
-            disp(['read ',filename]);
-
-            filename='in-hvi.h5';
-            time = 0;
-            mat2h5(obj,filename,time)
-            error('not finished');
-        end
         %%
         function initialize(obj)
             %% output
@@ -80,7 +71,8 @@ classdef sph_IO < handle
               disp (['movie saved as ',obj.movie_name]);
             end           
         end
-        %%
+        
+        %% %%%  Plotting functions %%% %%
         function plot_data(obj,t)
            figure(obj.mfigure);
            if obj.obj_particles.dim == 1               
@@ -106,7 +98,7 @@ classdef sph_IO < handle
                 subplot(nplot,1,iplot)
                 plot(data.Xj(data.Iin),0,'bo',data.Xj(data.Iboun),zeros(size(data.Iboun,1),1),'ko');
                 title(['position, t=',num2str(time),' N= ',num2str(data.N)])
-                xlim([0 data.Omega(1)]);
+                xlim([data.Omega(1) data.Omega(2)]);
                 iplot=iplot+1;     
             end
             if ~isempty(strfind(obj.plotstyle,'v'));
@@ -121,7 +113,7 @@ classdef sph_IO < handle
             if ~isempty(strfind(obj.plotstyle,'f'));     
                 subplot(nplot,1,iplot)
                 bar(data.Xj,[data.F_int,data.F_diss,data.F_diss_art,data.F_ST]); title('forces')
-                xlim([0 data.Omega(1)]);
+                xlim([data.Omega(1) data.Omega(2)]);
                 legend('int','diss','diss_art','st');
             end
             drawnow
@@ -138,10 +130,9 @@ classdef sph_IO < handle
            end
            hold off;
            title([title_name,', t=',num2str(time),' N= ',num2str(data.N)])
-           xlim([0 data.Omega(1)]);
+           xlim([data.Omega(1) data.Omega(2)]);
            iplot = iplot+1;            
-        end      
-      
+        end            
         %%
         function plot_data2D(obj,t)
            data = obj.obj_particles;
@@ -159,36 +150,36 @@ classdef sph_IO < handle
                 hold on;
            end
            axis equal
-           rectangle('Position',[0,0,data.Omega(1),data.Omega(2)]); %boundary
+           rectangle('Position',[data.Omega(1,1),data.Omega(2,1),data.Omega(1,2),data.Omega(2,2)]); %boundary
            title(['position; t=',num2str(t),' N= ',num2str(data.N)])
 
            %% draw connectivity
            if draw_connectivity               
                colo='gbkrm';
-               AiX=1:30:data.N;
+               AiX=1:10:data.N;
                for kk = 1:length(AiX)
                    iX= AiX(kk);
-                    neigh_iX = [data.A_pij(data.A_pij(:,1)==iX,2);data.A_pij(data.A_pij(:,2)==iX,1)]; %neighbours of iX
+                    neigh_iX = [data.pij(data.pij(:,1)==iX,2);data.pij(data.pij(:,2)==iX,1)]; %neighbours of iX
                     for k=1:size(neigh_iX,1)
                        plot([data.Xj(iX,1);data.Xj(neigh_iX(k),1)],...
                             [data.Xj(iX,2);data.Xj(neigh_iX(k),2)],colo(mod(kk,4)+1));
-                    end
+                    end                    
                end
            end
            
            %% draw cells
            if draw_cells
-               
+               %horizontal lines
                for k=1:data.Nc(2)
-                  y=(k/(data.Nc(2)))*data.Omega(2);
-                  plot([0,data.Omega(1)],[y,y],':k')
-               end
+                  y = data.Omega(2,1) + (k/(data.Nc(2)))*(data.Omega(2,2)-data.Omega(2,1));
+                  plot([data.Omega(1,1),data.Omega(1,2)],[y,y],':k')
+               end               
+               %vertical lines
                for k=1:data.Nc(1)
-                  x=(k/(data.Nc(1)))*data.Omega(1);
-                  plot([x,x],[0,data.Omega(2)],':k')
+                  x = data.Omega(1,1) + (k/(data.Nc(1)))*(data.Omega(1,2)-data.Omega(1,1));
+                  plot([x,x],[data.Omega(2,1),data.Omega(2,2)],'-k')
                end
-           end
-           
+           end           
            %% mark one particle
            if mark_point           
                iX=1;%Iin(end)+floor(size(Iboun,1)/2)+1;
@@ -261,12 +252,12 @@ classdef sph_IO < handle
             clf
             transparentScatter(obj,x,y,z,a,opacity);
             %scatter(x,y,a,z,'filled'); % no alpha possible
-             caxis([-3 3])
+             caxis([-1 1])
             colorbar 
             colormap jet
             
             hold on
-            rectangle('Position',[0,0,data.Omega(1),data.Omega(2)]); %boundary
+            rectangle('Position',[data.Omega(1,1),data.Omega(2,1),data.Omega(1,2),data.Omega(2,2)]); %boundary
             title(['t=',num2str(time),' N= ',num2str(data.N)])
             axis('equal')
 
@@ -290,13 +281,22 @@ classdef sph_IO < handle
         end
         %%
 
-             
+        %% %%% In/out %%% %%
+        function read(obj,filename)
+            disp(['read ',filename]);
+
+            filename='in-hvi.h5';
+            time = 0;
+            mat2h5(obj,filename,time)
+            error('not finished');
+        end
+        
         %ToDo:
         function mat2h5(~,filename,time)
   
-                function x=readVariable(x_name,filename,time)
-                     x=h5read(filename,['/',time,'/',x_name]);            
-                end
+            function x=readVariable(x_name,filename,time)
+                 x=h5read(filename,['/',time,'/',x_name]);            
+            end
             time_str = num2str(time);
              
 

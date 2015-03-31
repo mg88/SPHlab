@@ -20,7 +20,8 @@ ps.c0   = 50;
 ps.beta = 0.1;    %for surface tension
 
 %% domain
-ps.Omega = [1,1];  %upper right corner  lower-left ist zero: [0,Omega(1)]x[0,Omega(2)]
+ps.Omega = [0, 1;
+            0, 1];  
 
 lowerleftcorner1 = [0.45,0.35];
 upperrightcorner1= [ 0.55,0.6];

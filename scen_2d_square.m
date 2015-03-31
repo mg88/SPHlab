@@ -20,7 +20,8 @@ ps.rho0 = 1.0;     %relativ density
 ps.c0   = 10;
 
 %% domain
-ps.Omega = [1,1]; 
+ps.Omega = [0,1;
+            0,1]; 
 
 lowerleftcorner1 = [0.3,0.3];
 upperrightcorner1= [ 0.7,0.7];

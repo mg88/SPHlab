@@ -21,7 +21,7 @@ ps.c0   = 10;
 
 
 %% domain         
-ps.Omega = 1; 
+ps.Omega = [0,1.1]; 
 ps.obj_geo = sph_geometry();
 
 %% active particles
