@@ -5,9 +5,8 @@ classdef sph_scenario < handle
     properties
 
         %% simulation parameter
-        dim         % 1 or 2
         dx          % initial particle distance
-        omega       % savetyfactor for timestepping
+        dtfactor    % savetyfactor for timestepping
         tend        % Simulation time
         eta         % h=eta*dx
         eta2        % eta2*h is the cutoff radius 
@@ -17,8 +16,10 @@ classdef sph_scenario < handle
         obj_geo     % geometry class
         
         Xj           % coordinates
+        geo_noise    % some noise in the position
         V0particle   % Volume of the particle
         vj           % velocity                
+        mj           % mass
         
         %% indices domain
         Iboun
@@ -26,21 +27,22 @@ classdef sph_scenario < handle
         Imaterial  % [1st indice of n-st material, last indice of n-st material]^n
        
         %% material parameter
-        rho0     % relative density
-        c0       % speed of sound
-        beta     % for surface tension
-        mu       % for dissipation
+        rho0j      % density
+        c0j       % speed of sound
+        beta      % for surface tension
+        mu        % for dissipation
         
         % 
         g_ext    %gravity
 
         %% IO
         % input
-        read_file
+        read_data
         input_name
         % output
-        
-        
+        write_data
+        output_name
+       
         % some plotting properties
         plot_dt         % plotting timestep
         plotstyle       % 1D: x-position, v-velocity, p-pressure, d-density, f-forces
@@ -55,9 +57,6 @@ classdef sph_scenario < handle
     methods
         % Constructor
         function obj = sph_scenario()
-           obj.Xj    = []; 
-           obj.vj    = []; 
-           obj.V0particle = [];
            obj.Iboun = [];
            obj.Iin   = [];
            obj.Imaterial = [];
@@ -65,11 +64,16 @@ classdef sph_scenario < handle
            obj.save_as_movie = false;
            obj.movie_name = 'out';
            obj.plotstyle = 'scatter';
-           obj.read_file = false;
+           obj.read_data = false;
+           
+           obj.write_data = false; 
+           obj.output_name ='data_out.h5';
+           
            obj.kernel = 'M4'; %standard kernel
-           obj.omega  = 0.5;
+           obj.dtfactor  = 0.5;
            obj.beta = 0;
            obj.mu   = 0;
+           obj.geo_noise = 0;
            
            obj.iter  = 1;
         end       
@@ -90,9 +94,24 @@ classdef sph_scenario < handle
            disp(obj)             
         end
         
+        function addproperties(obj, I, Vp, rho0, v0,c0,boun) %constant mass/Volume
+            m0 = Vp * rho0;            
+            obj.vj(I,:)  = ones(size(I,1),1)*v0;     
+            obj.c0j(I,1)   = c0;
+            obj.rho0j(I,1) = rho0;
+            obj.mj(I,1)    = m0;
+            obj.Imaterial = [obj.Imaterial;...
+                             [I(1) I(end)] ];
+            if boun
+                obj.Iboun = [obj.Iboun; I];
+            else
+                obj.Iin   = [obj.Iin; I];
+            end 
+        end
+
         
         %% % some geometry functions % %%
-         function I=add_line1d(obj,Astartpoint, Aendpoint,v0,dx)
+         function I=add_line1d(obj,Astartpoint, Aendpoint)
             first_ind=obj.iter;
             for k=1:size(Astartpoint,1)
                 startpoint=Astartpoint(k,:);
@@ -102,18 +121,17 @@ classdef sph_scenario < handle
                 e_edge = e_edge/l_edge;
                 x_par=startpoint;
                 while (norm(x_par-startpoint)<=l_edge)
-                    obj.Xj = [obj.Xj;x_par];  %add point
-                    obj.vj = [obj.vj;v0];     %add velocity
-                    obj.V0particle = [obj.V0particle; dx];
+                    obj.Xj = [obj.Xj;x_par];  %add point                 
                     obj.iter=obj.iter+1;
-                    x_par = x_par + e_edge*dx;
+                    x_par = x_par + e_edge*obj.dx;
                 end
             end
-            second_ind=obj.iter-1;
-            I=(first_ind:second_ind)';
-        end
+            second_ind = obj.iter-1;
+            I = (first_ind:second_ind)';
+         end
         
-        function I=add_line2d(obj,Astartpoint, Aendpoint,v0,dx,layer,noisefactor)  
+         
+        function I=add_line2d(obj,Astartpoint, Aendpoint,layer)  
             %place particles from startpoint to endpoint with distance dx
             %and with #layer
             first_ind=obj.iter;
@@ -126,23 +144,19 @@ classdef sph_scenario < handle
                 x_par=startpoint;
                 while (norm(x_par-startpoint)<=l_edge)
                     for shift = 1:layer;
-                        x_par_temp = x_par + (shift-1)*e_edge*[0,-1;0,1]*dx;
-                        noise = dx*noisefactor*(2*rand(1,2)-1); %add some noise
+                        x_par_temp = x_par + (shift-1)*e_edge*[0,-1;0,1]*obj.dx;
+                        noise = obj.dx*obj.geo_noise*(2*rand(1,2)-1); %add some noise
                         obj.Xj = [obj.Xj;x_par_temp+noise];  %add point
-                        obj.vj = [obj.vj;v0];     %add velocity
-                        obj.V0particle = [obj.V0particle; dx*dx];
                         obj.iter=obj.iter+1;
                     end
-                    x_par = x_par + e_edge*dx;
+                    x_par = x_par + e_edge*obj.dx;
                 end
             end
             second_ind=obj.iter-1;
-            I=(first_ind:second_ind)';
-            
+            I=(first_ind:second_ind)';            
         end
         
-        function I=add_rectangle2d(obj,Alowerleftcorner, Aupperrightcorner,...
-                v0, dx,dy,noisefactor)
+        function I=add_rectangle2d(obj,Alowerleftcorner, Aupperrightcorner)
             first_ind=obj.iter;
             for k=1:size(Alowerleftcorner,1)
                 lowerleftcorner = Alowerleftcorner(k,:);
@@ -150,15 +164,13 @@ classdef sph_scenario < handle
                 x_par=lowerleftcorner;
                 while (x_par(2) <= upperrightcorner(2));
                     while (x_par(1)<= upperrightcorner(1));
-                        noise = dx*noisefactor*(2*rand(1,2)-1);
+                        noise = obj.dx*obj.geo_noise*(2*rand(1,2)-1);
                         obj.Xj = [obj.Xj;x_par+noise];  %add point
-                        obj.vj = [obj.vj;v0];     %add velocity
-                        obj.V0particle = [obj.V0particle; dx*dy];
                         obj.iter=obj.iter+1;
-                        x_par(1)= x_par(1)+dx;
+                        x_par(1)= x_par(1)+obj.dx;
                     end
                     x_par(1)= lowerleftcorner(1);
-                    x_par(2)= x_par(2)+dy;
+                    x_par(2)= x_par(2)+obj.dx;
                 end  
             end
             second_ind=obj.iter-1;

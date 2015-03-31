@@ -5,8 +5,9 @@ classdef sph_IO < handle
     properties
         %input
         
-        %output
-        dim
+        %output       
+        output_name
+        write_data
         
         %plot
         mfigure
@@ -31,17 +32,24 @@ classdef sph_IO < handle
               obj.movie_name    = get_movie_name(obj_scen);
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plotstyle     = obj_scen.plotstyle;
-              
+                                         
               %read data from file and save in obj_scen
-              if obj_scen.read_file
-                 obj.read_htf5(obj_scen);
-              end            
+              if obj_scen.read_data
+                 obj.read_hdf5(obj_scen);
+              end    
+              
+              %output
+              obj.write_data  = obj_scen.write_data;
+              obj.output_name = obj_scen.output_name;
+              if obj.write_data %create file
+                  hdf5write(obj.output_name, '/name', 0); % ToDo: better solution?
+              end   
         end
         
         %%
         function initialize(obj)
             %% output
-            disp(obj.dim)
+
             %% plot
             
             
@@ -66,7 +74,13 @@ classdef sph_IO < handle
                     currFrame = getframe(obj.mfigure);
                     writeVideo(obj.vidObj,currFrame);
                 end
+                
+                %write output
+                if obj.write_data
+                     write_hdf5(obj,t,obj_particles)
+                end
             end   
+
         end       
         %%
         function finalize (obj)
@@ -86,7 +100,7 @@ classdef sph_IO < handle
                plot_data1D(obj,t);
            elseif obj.obj_particles.dim == 2
                if strcmp(obj.plotstyle,'scatter')
-                    plot_data2D(obj,t);
+                    plot_scatter2D(obj,t);
                elseif strcmp (obj.plotstyle,'trisurf')
                     plot_trisurf(obj,t)
                elseif strcmp (obj.plotstyle,'patches')
@@ -141,7 +155,7 @@ classdef sph_IO < handle
            iplot = iplot+1;            
         end            
         %%
-        function plot_data2D(obj,t)
+        function plot_scatter2D(obj,t)
            data = obj.obj_particles;
            %% some flags:
            draw_connectivity = false;
@@ -157,7 +171,8 @@ classdef sph_IO < handle
                 hold on;
            end
            axis equal
-           rectangle('Position',[data.Omega(1,1),data.Omega(2,1),data.Omega(1,2),data.Omega(2,2)]); %boundary
+           rectangle('Position',[data.Omega(1,1),data.Omega(2,1),...
+               data.Omega(1,2)-data.Omega(1,1),data.Omega(2,2)-data.Omega(2,1)]); %boundary
            title(['position; t=',num2str(t),' N= ',num2str(data.N)])
 
            %% draw connectivity
@@ -242,7 +257,8 @@ classdef sph_IO < handle
           %  axis('equal')
        %     hold off;
             hold on
-            rectangle('Position',[0,0,data.Omega(1),data.Omega(2)]); %boundary
+            rectangle('Position',[data.Omega(1,1),data.Omega(2,1),...
+                     data.Omega(1,2)-data.Omega(1,1),data.Omega(2,2)-data.Omega(2,1)]); %boundary
             title(['t=',num2str(time),' N= ',num2str(data.N)])
             hold off;
        
@@ -258,14 +274,14 @@ classdef sph_IO < handle
             opacity = 0.3;
             clf
             transparentScatter(obj,x,y,z,a,opacity);
-            %scatter(x,y,a,z,'filled'); % no alpha possible
-             caxis([-1 1])
+            caxis([-1 1])
             colorbar 
             colormap jet
             
             hold on
-            rectangle('Position',[data.Omega(1,1),data.Omega(2,1),data.Omega(1,2),data.Omega(2,2)]); %boundary
-            title(['t=',num2str(time),' N= ',num2str(data.N)])
+            rectangle('Position',[data.Omega(1,1),data.Omega(2,1),...
+               data.Omega(1,2)-data.Omega(1,1),data.Omega(2,2)-data.Omega(2,1)]); %boundary
+                title(['t=',num2str(time),' N= ',num2str(data.N)])
             axis('equal')
 
             hold off;
@@ -290,57 +306,71 @@ classdef sph_IO < handle
 
         %% %%% In/out %%% %%
         
-        %ToDo:
-        function read_htf5(~,obj_scen)
+        function read_hdf5(~,obj_scen)
   
             function x=readVariable(x_name,filename,time)
                  x=h5read(filename,['/',time,'/',x_name]);            
             end
+            time = 0;
             time_str = num2str(time);
-            
+            filename =obj_scen.input_name;
             %position
-            obj_scen.obj_geo.Xj = [readVariable('x',filename,time_str);
+            obj_scen.Xj = [readVariable('x',filename,time_str),...
                            readVariable('y',filename,time_str)];
             %velocity                       
-            obj_scen.obj_geo.vj = [readVariable('u',filename,time_str);
+            obj_scen.vj = [readVariable('u',filename,time_str),...
                            readVariable('v',filename,time_str)];
     
-            keyboard
-            Gamma = readVariable('Gamma',filename,time_str);
-            Gmod = readVariable('Gmod',filename,time_str);
-            S = readVariable('S',filename,time_str);
-            Y0 = readVariable('Y0',filename,time_str);
-            c = readVariable('c',filename,time_str);
-            c0 = readVariable('c0',filename,time_str);
-            e = readVariable('e',filename,time_str);
-            m = readVariable('m',filename,time_str);
-            p = readVariable('p',filename,time_str);
-            phi = readVariable('phi',filename,time_str);
-            rho = readVariable('rho',filename,time_str);
-            rho0 = readVariable('rho0',filename,time_str);
-            tauXX = readVariable('tauXX',filename,time_str);
-            tauXY = readVariable('tauXY',filename,time_str);
-            tauYY = readVariable('tauYY',filename,time_str);
+            %speed of sound
+            %c = readVariable('c',filename,time_str);
+            obj_scen.c0j = readVariable ('c',filename,time_str);
 
+            %density            
+            %rho = readVariable('rho',filename,time_str);
+            obj_scen.rho0j = readVariable('rho',filename,time_str);
+     
+            %mass
+            obj_scen.mj = readVariable('m',filename,time_str);
+            
+            %ToDo: improve this
+            obj_scen.dx  = abs(obj_scen.Xj(1,1)-obj_scen.Xj(2,1));
+            N = size(obj_scen.Xj,1);
+            obj_scen.Iin = (1:N)';
+            obj_scen.Imaterial = [1,N]; 
+          %  Gamma = readVariable('Gamma',filename,time_str);
+          %  Gmod = readVariable('Gmod',filename,time_str);
+          %  S = readVariable('S',filename,time_str);
+          %  Y0 = readVariable('Y0',filename,time_str);
+          %  e = readVariable('e',filename,time_str);
+          %  p = readVariable('p',filename,time_str);
+          %  phi = readVariable('phi',filename,time_str);
+          %  tauXX = readVariable('tauXX',filename,time_str);
+          %  tauXY = readVariable('tauXY',filename,time_str);
+          %  tauYY = readVariable('tauYY',filename,time_str);
 
-            keyboard
-
-            %% in
-            % Gamma, Gmod, S, Y0, c, c0, e, m, p, phi, rho, rho0, 
-            % tauXX, tauXY, tauYY,
-            % u, v, x,y
-
+        end
+        
+        function write_hdf5(obj,time,obj_particle)
+            filename = obj.output_name;
+            function writeVariable(filename,time,name,data)
+                group = ['/',num2str(time),'/',name];
+                hdf5write(filename, group, data, 'WriteMode', 'append');
+            end
+            writeVariable(filename,time,'x',obj_particle.Xj(:,1));
+            writeVariable(filename,time,'y',obj_particle.Xj(:,2));
+            writeVariable(filename,time,'u',obj_particle.vj(:,1));
+            writeVariable(filename,time,'v',obj_particle.vj(:,2));
+            writeVariable(filename,time,'c',obj_particle.cj);
+            writeVariable(filename,time,'rho',obj_particle.rhoj);
+            writeVariable(filename,time,'m',obj_particle.mj);                        
+            
             %% out
             % Gamma, Gmod, O, S, Vol, Y0, c, c0, e, eh, epsdotXX, epsdotXY,
             % et, h , m, nn, p ,phi, rho, rho0, rhoh, rhot, rotdotXY,
             % stationary, t, tauXX, tauXXpl, tauXXrho2, tauXY, tauXYpl,
             % tauXYrho2, tauYY, tauYYpl,tauYYrho2, taudotXX, taudotXY, 
             % taudotYY, tmp, u, uh, ups, ut, v, vh, vt, x ,y , 
-
-
         end
-        
-
     end
 
     

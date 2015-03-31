@@ -4,8 +4,7 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-ps.dim     = 2;
-ps.dx      = 8e-3;
+ps.dx      = 1e-2;
 ps.tend    = 0.5;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
@@ -17,33 +16,28 @@ ps.plotstyle = 'patches';
 
 
 %% material parameter
-ps.rho0 = 1;     %relativ density
-ps.c0   = 500;
+rho0 = 1;     %relativ density
+c0   = 50;
 
 %% domain
 ps.Omega = [0, 1;  %x
             0, 1]; %y
+Vp = ps.dx*ps.dx; %volume per particle
 
 %line 1
 startpoint = [0.22,0.49];
 endpoint   = [0.55,0.49];
 v0   = [0,-1];
-noise = 0;
-layer = 5;
-I_new = add_line2d(ps,startpoint,endpoint,...
-    v0,ps.dx,layer,noise);   
-ps.Iin=[ps.Iin;I_new];
-ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
+layer = 4;
+I = add_line2d(ps,startpoint,endpoint,layer);   
+addproperties(ps, I, Vp, rho0, v0,c0, false)
 
 %line 2
 startpoint = [0.42,0.41];
 endpoint   = [0.8,0.41];
 v0   = [0,0];
-I_new = add_line2d(ps,startpoint,endpoint,...
-    v0 ,ps.dx,layer,noise);
-%ps.Iin=[ps.Iin;I_new];
-ps.Iboun=[ps.Iboun;I_new];
-ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
+I = add_line2d(ps,startpoint,endpoint,layer);
+addproperties(ps, I, Vp, rho0, v0,c0, false)
 
 %% -----------------------------------------------------
 

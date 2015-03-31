@@ -46,7 +46,7 @@ classdef sph_particles < handle
         %volume
         Vj
         %mass
-        Mj
+        mj
         %some indicies
         Iin
         Iall
@@ -57,11 +57,14 @@ classdef sph_particles < handle
         cj
         beta
         mu
-            
+        %scheme
+        scheme 
+        Omegaj  %for m/n/v scheme
+        
         
         %Time
         dt
-        omega %savety factor for timestepping
+        dtfactor %savety factor for timestepping
         tend                
         %Distances rij=xi-xj= rij * xij_h
         rij    % = bar(xij)  
@@ -101,17 +104,16 @@ classdef sph_particles < handle
             obj.N     = size(obj.Xj,1);
             obj.dim   = size(obj.Xj,2);
 
-            obj.rho0j = ones(obj.N,1).*obj_scen.rho0;            
+            obj.rho0j = obj_scen.rho0j;            
             obj.rhoj  = obj.rho0j;
-            obj.cj0   = ones(obj.N,1).*obj_scen.c0;
+            obj.cj0   = obj_scen.c0j;
             obj.cj    = obj.cj0;
             
             obj.beta = obj_scen.beta;
             obj.mu   = obj_scen.mu;
-            
-            % stimmt das?
-            obj.Mj   = obj.rhoj.*obj_scen.V0particle;    
-            
+                                    
+            obj.mj   = obj_scen.mj;    
+                        
             %initial smoothing length
             obj.h     = obj_scen.dx * obj_scen.eta;
             obj.kernel= obj_scen.kernel;
@@ -122,7 +124,7 @@ classdef sph_particles < handle
             obj.Iall  = [obj.Iin;obj.Iboun];
             obj.Imaterial = obj_scen.Imaterial;
                                                
-            obj.omega  = obj_scen.omega;
+            obj.dtfactor  = obj_scen.dtfactor;
             obj.tend   = obj_scen.tend;           
             obj.vj     = obj_scen.vj;
             obj.F_int  = zeros(obj.N,obj.dim);
@@ -187,11 +189,11 @@ classdef sph_particles < handle
              update_postion(obj)           
         end     
         %%
-        function update_dt(obj)  %absolute value ?!
+        function update_dt(obj)  %ToDo: absolute value ?!!!
             if obj.dim == 1
-                obj.dt = obj.omega * min(obj.h./(obj.cj + obj.vj));
+                obj.dt = obj.dtfactor * min(obj.h./(obj.cj + obj.vj));
             else
-                obj.dt = obj.omega * min(obj.h./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
+                obj.dt = obj.dtfactor * min(obj.h./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
             end
         end
         
@@ -482,20 +484,20 @@ classdef sph_particles < handle
             if ~obj.firststep
                 obj.rhoj(obj.Iall) = obj.rhoj_half(obj.Iall)+ 0.5*obj.dt * obj.drhoj(obj.Iall);
                 obj.vj(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + 0.5*obj.dt *...
-                    (obj.F_int(obj.Iin,:)+obj.F_ST(obj.Iin,:)+obj.F_diss(obj.Iin,:))./(obj.Mj(obj.Iin)*ones(1,obj.dim));
+                    (obj.F_int(obj.Iin,:)+obj.F_ST(obj.Iin,:)+obj.F_diss(obj.Iin,:))./(obj.mj(obj.Iin)*ones(1,obj.dim));
             end
         end
         %%
         function update_half_step(obj) 
             if obj.firststep
-                 obj.rhoj_half(obj.Iall) = obj.rhoj(obj.Iall)  + 0.5*obj.dt*obj.drhoj(obj.Iall);
-                 obj.vj_half(obj.Iin,:)  = obj.vj(obj.Iin,:) + 0.5*obj.dt * ...
-                    (obj.F_total(obj.Iin,:))./(obj.Mj(obj.Iin)*ones(1,obj.dim));
+                obj.rhoj_half(obj.Iall) = obj.rhoj(obj.Iall)  + 0.5*obj.dt*obj.drhoj(obj.Iall);
+                obj.vj_half(obj.Iin,:)  = obj.vj(obj.Iin,:) + 0.5*obj.dt * ...
+                    (obj.F_total(obj.Iin,:))./(obj.mj(obj.Iin)*ones(1,obj.dim));
                 obj.firststep=false;
             else
                 obj.rhoj_half(obj.Iall) = obj.rhoj_half(obj.Iall)+ obj.dt * obj.drhoj(obj.Iall);
                 obj.vj_half(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + obj.dt *...
-                    (obj.F_total(obj.Iin,:))./(obj.Mj(obj.Iin)*ones(1,obj.dim));
+                    (obj.F_total(obj.Iin,:))./(obj.mj(obj.Iin)*ones(1,obj.dim));
                 %+ones(size(Iin))*g_ext);
             end
         end
@@ -507,7 +509,7 @@ classdef sph_particles < handle
 
         %%
         function comp_volume(obj)
-            obj.Vj = obj.Mj(:)./obj.rhoj(:);
+            obj.Vj = obj.mj(:)./obj.rhoj(:);
         end        
         %%
         function comp_pressure(obj) %switch
@@ -595,7 +597,7 @@ classdef sph_particles < handle
                    .*(vijxijh<=0); 
                
              qF_diss_art_ij(obj.active_k_pij,:)  = ...
-                 ((obj.Mj(obj.Ii) .* obj.Mj(obj.Ij).* ...
+                 ((obj.mj(obj.Ii) .* obj.mj(obj.Ij).* ...
                  alpha_diss .*v_sig .* vijxijh) ./...
                  (0.5 *(obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij)))... bar(rho)
                  .*obj.dWij)...   %(h constant!)
