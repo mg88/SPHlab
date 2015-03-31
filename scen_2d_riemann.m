@@ -16,14 +16,12 @@ ps.save_as_movie = false;
 ps.plotstyle = 'patches';
 
  %% material parameter
-ps.rho0 = 1;     %relativ density
+ps.rho0 = 1;   
 ps.c0   = 10;
 
 %% domain         
 ps.Omega = [0,1  ;  %x
             0,0.5]; %y
-ps.obj_geo = sph_geometry();
-
 
 %% active particles
 l  = 0.2;
@@ -36,7 +34,7 @@ lowerleftcorner1 = [l,h1];
 upperrightcorner1= [ interface,h2];
 v0    =[3,0];
 noise = 0;
-I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+I_new = add_rectangle2d(ps,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                            
@@ -44,7 +42,7 @@ ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 lowerleftcorner1 = [interface+ps.dx,h1];
 upperrightcorner1= [ r,h2];
 v0    = [0,0];
-I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+I_new = add_rectangle2d(ps,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                            

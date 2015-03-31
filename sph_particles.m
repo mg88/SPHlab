@@ -91,17 +91,13 @@ classdef sph_particles < handle
     end
  %%   
     methods
+       
         %% constructor
-        %function obj = particles(obj_geo,rho0,h,Iin,Iboun)
         function obj = sph_particles(obj_scen)
-            obj.IO = sph_IO(obj_scen);
-            if obj_scen.read_file
-               obj_scen = obj.IO.read(obj_scen.input_name);
-            end
-            
-            
+            obj.IO = sph_IO(obj_scen); %initialize IO and read data if necessary
+           
             obj.Omega = obj_scen.Omega;
-            obj.Xj    = obj_scen.obj_geo.Xj;
+            obj.Xj    = obj_scen.Xj;
             obj.N     = size(obj.Xj,1);
             obj.dim   = size(obj.Xj,2);
 
@@ -114,7 +110,7 @@ classdef sph_particles < handle
             obj.mu   = obj_scen.mu;
             
             % stimmt das?
-            obj.Mj   = obj.rhoj.*obj_scen.obj_geo.V0particle;    
+            obj.Mj   = obj.rhoj.*obj_scen.V0particle;    
             
             %initial smoothing length
             obj.h     = obj_scen.dx * obj_scen.eta;
@@ -126,13 +122,13 @@ classdef sph_particles < handle
             obj.Iall  = [obj.Iin;obj.Iboun];
             obj.Imaterial = obj_scen.Imaterial;
                                                
-            obj.omega   = obj_scen.omega;
-            obj.tend = obj_scen.tend;           
-            obj.vj     = obj_scen.obj_geo.vj;
+            obj.omega  = obj_scen.omega;
+            obj.tend   = obj_scen.tend;           
+            obj.vj     = obj_scen.vj;
             obj.F_int  = zeros(obj.N,obj.dim);
             obj.F_diss = zeros(obj.N,obj.dim);
             obj.F_ST   = zeros(obj.N,obj.dim);
-            obj.nIj  = zeros(obj.N,obj.dim);
+            obj.nIj    = zeros(obj.N,obj.dim);
 
             obj.drhoj     = zeros(obj.N,1);
             obj.rhoj_half = zeros(obj.N,1);

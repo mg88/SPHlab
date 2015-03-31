@@ -30,7 +30,7 @@ endpoint   = [0.55,0.49];
 v0   = [0,-1];
 noise = 0;
 layer = 5;
-I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
+I_new = add_line2d(ps,startpoint,endpoint,...
     v0,ps.dx,layer,noise);   
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
@@ -39,7 +39,7 @@ ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 startpoint = [0.42,0.41];
 endpoint   = [0.8,0.41];
 v0   = [0,0];
-I_new = add_line2d(ps.obj_geo,startpoint,endpoint,...
+I_new = add_line2d(ps,startpoint,endpoint,...
     v0 ,ps.dx,layer,noise);
 %ps.Iin=[ps.Iin;I_new];
 ps.Iboun=[ps.Iboun;I_new];

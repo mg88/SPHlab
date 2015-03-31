@@ -5,7 +5,7 @@ close all; clear; clc;
 ps = sph_scenario();
 
 ps.read_file = true;
-ps.input_name = 'test';
+ps.input_name = 'in-hvi.h5';
 
 
 %% create particle class

@@ -29,7 +29,7 @@ lowerleftcorner2 = [0.35,0.35];
 upperrightcorner2= [ 0.45,0.45];
 v0=[0,0];
 noise = 0;
-I_new = add_rectangle2d(ps.obj_geo,[lowerleftcorner1;lowerleftcorner2],...
+I_new = add_rectangle2d(ps,[lowerleftcorner1;lowerleftcorner2],...
                  [upperrightcorner1;upperrightcorner2],v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];

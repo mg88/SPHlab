@@ -22,13 +22,12 @@ ps.c0   = 10;
 
 %% domain         
 ps.Omega = [0,1.1]; 
-ps.obj_geo = sph_geometry();
 
 %% active particles
 leftpoint = 0.08;
 rightpoint= 0.88;
 v0   = -1;
-I_new = add_line1d(ps.obj_geo,leftpoint,rightpoint,v0,ps.dx);
+I_new = add_line1d(ps,leftpoint,rightpoint,v0,ps.dx);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];            
 
@@ -38,7 +37,7 @@ bounright1 = 0.05;
 bounleft2  = 0.95;
 bounright2 = 1;
 v0=0;
-I_new=add_line1d(ps.obj_geo,[bounleft1;bounleft2]...
+I_new=add_line1d(ps,[bounleft1;bounleft2]...
                  ,[bounright1;bounright2],v0,ps.dx);
 ps.Iboun=[ps.Iboun;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                         

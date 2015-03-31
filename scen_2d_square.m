@@ -16,7 +16,7 @@ ps.save_as_movie = false;
 ps.plotstyle = 'patches';
 
 %% material parameter
-ps.rho0 = 1.0;     %relativ density
+ps.rho0 = 1.0;  
 ps.c0   = 10;
 
 %% domain
@@ -27,7 +27,7 @@ lowerleftcorner1 = [0.3,0.3];
 upperrightcorner1= [ 0.7,0.7];
 v0    =[0,0];
 noise = 0;
-I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+I_new = add_rectangle2d(ps,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];                            

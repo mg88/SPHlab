@@ -31,8 +31,6 @@ ps.mu   = 0;    %for dissipation
 
 %% domain         
 ps.Omega = [-0.2,0.5]; 
-ps.obj_geo = sph_geometry();
-
 
 %% active particles
 
@@ -40,7 +38,7 @@ ps.obj_geo = sph_geometry();
 leftpoint = 0.22;
 rightpoint= -0.2;
 v0   = -2;
-I_new = add_line1d(ps.obj_geo,leftpoint,rightpoint,v0,ps.dx);
+I_new = add_line1d(ps,leftpoint,rightpoint,v0,ps.dx);
 
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ]; 
@@ -49,7 +47,7 @@ ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 leftpoint = leftpoint+ps.dx;
 rightpoint= 0.4;
 v0   = 0;
-I_new = add_line1d(ps.obj_geo,leftpoint,rightpoint,v0,ps.dx);
+I_new = add_line1d(ps,leftpoint,rightpoint,v0,ps.dx);
 
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];     

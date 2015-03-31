@@ -34,7 +34,7 @@ lowerleftcorner1 = [0.0,  -0.25];
 upperrightcorner1= [0.05, 0.25];
 v0 = [0,0];
 noise = 0;
-I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+I_new = add_rectangle2d(ps,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
@@ -44,7 +44,7 @@ ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];
 %             upperrightcorner1= [0.9,1.9];
 %             v0=[0,0];
 %             noise = 0;
-%             I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+%             I_new = add_rectangle2d(ps,lowerleftcorner1,...
 %                              upperrightcorner1,v0,ps.dx,ps.dx,noise);
 %             ps.Iin=[ps.Iin;I_new];
 
@@ -53,7 +53,7 @@ lowerleftcorner1 = [-0.2 , -0.02] ;
 upperrightcorner1= [-0.02, 0.02] ;
 v0=[1,0];
 noise = 0;
-I_new = add_rectangle2d(ps.obj_geo,lowerleftcorner1,...
+I_new = add_rectangle2d(ps,lowerleftcorner1,...
                  upperrightcorner1,v0,ps.dx,ps.dx,noise);
 ps.Iin=[ps.Iin;I_new];
 ps.Imaterial = [ps.Imaterial; [I_new(1) I_new(end)] ];

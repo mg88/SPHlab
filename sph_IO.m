@@ -26,11 +26,18 @@ classdef sph_IO < handle
         
 %         %% constructor
         function obj = sph_IO(obj_scen)
+              % some IO properties
               obj.save_as_movie = obj_scen.save_as_movie;
               obj.movie_name    = get_movie_name(obj_scen);
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plotstyle     = obj_scen.plotstyle;
+              
+              %read data from file and save in obj_scen
+              if obj_scen.read_file
+                 obj.read_htf5(obj_scen);
+              end            
         end
+        
         %%
         function initialize(obj)
             %% output
@@ -282,24 +289,23 @@ classdef sph_IO < handle
         %%
 
         %% %%% In/out %%% %%
-        function read(obj,filename)
-            disp(['read ',filename]);
-
-            filename='in-hvi.h5';
-            time = 0;
-            mat2h5(obj,filename,time)
-            error('not finished');
-        end
         
         %ToDo:
-        function mat2h5(~,filename,time)
+        function read_htf5(~,obj_scen)
   
             function x=readVariable(x_name,filename,time)
                  x=h5read(filename,['/',time,'/',x_name]);            
             end
             time_str = num2str(time);
-             
-
+            
+            %position
+            obj_scen.obj_geo.Xj = [readVariable('x',filename,time_str);
+                           readVariable('y',filename,time_str)];
+            %velocity                       
+            obj_scen.obj_geo.vj = [readVariable('u',filename,time_str);
+                           readVariable('v',filename,time_str)];
+    
+            keyboard
             Gamma = readVariable('Gamma',filename,time_str);
             Gmod = readVariable('Gmod',filename,time_str);
             S = readVariable('S',filename,time_str);
@@ -315,10 +321,7 @@ classdef sph_IO < handle
             tauXX = readVariable('tauXX',filename,time_str);
             tauXY = readVariable('tauXY',filename,time_str);
             tauYY = readVariable('tauYY',filename,time_str);
-            u = readVariable('u',filename,time_str);
-            v = readVariable('v',filename,time_str);
-            x = readVariable('x',filename,time_str);
-            y = readVariable('y',filename,time_str);
+
 
             keyboard
 
