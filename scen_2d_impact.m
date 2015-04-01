@@ -8,9 +8,9 @@ ps.write_data = false;
 ps.read_data  = false;
 ps.input_name = 'test';
 
-ps.dx       = 8e-2;
+ps.dx       = 8e-3;
 ps.dtfactor = 0.5;
-ps.tend     = 0.4;    
+ps.tend     = 0.3;    
 ps.eta      = 1.3;     
 ps.eta2     = 2;  
 ps.kernel   = 'M4';
