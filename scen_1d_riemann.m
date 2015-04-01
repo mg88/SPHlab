@@ -4,7 +4,7 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-ps.read_file = false;
+ps.read_data = false;
 ps.input_name = 'test';
 
 ps.dx      = 2e-4;
@@ -14,6 +14,7 @@ ps.tend    = 0.3;
 ps.eta     = 1.2;     
 ps.eta2    = 2;
 ps.kernel  = 'M4';
+ps.scheme   = 'c';
 
 %IO
 ps.plot_dt = 1e-4;  

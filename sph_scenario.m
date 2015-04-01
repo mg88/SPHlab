@@ -11,9 +11,9 @@ classdef sph_scenario < handle
         eta         % h=eta*dx
         eta2        % eta2*h is the cutoff radius 
         kernel      % M4 | gauss
+        scheme      % m | v | c(lassic)
         %% geometry
         Omega       % domain  [x_left, x_right]^n
-        obj_geo     % geometry class
         
         Xj           % coordinates
         geo_noise    % some noise in the position
@@ -70,6 +70,7 @@ classdef sph_scenario < handle
            obj.output_name ='data_out.h5';
            
            obj.kernel = 'M4'; %standard kernel
+           obj.scheme = 'c';
            obj.dtfactor  = 0.5;
            obj.beta = 0;
            obj.mu   = 0;

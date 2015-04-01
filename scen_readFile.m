@@ -5,8 +5,10 @@ close all; clear; clc;
 ps = sph_scenario();
 
 ps.read_data = true;
-ps.write_data = false;
 ps.input_name = 'in-hvi.h5';
+
+ps.write_data = false;
+
 ps.kernel = 'M4';
 ps.Omega = [ -0.1, 0.4;
             -0.3, 0.3];
