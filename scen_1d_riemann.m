@@ -7,17 +7,17 @@ ps = sph_scenario();
 ps.read_data = false;
 ps.input_name = 'test';
 
-ps.dx      = 2e-4;
+ps.dx      = 2e-2;
 ps.dtfactor   = 0.4;  
-ps.tend    = 0.3;    
+ps.tend    = 0.1;    
  
 ps.eta     = 1.2;     
 ps.eta2    = 2;
 ps.kernel  = 'M4';
-ps.scheme   = 'c';
+ps.scheme   = 'v';
 
 %IO
-ps.plot_dt = 1e-4;  
+ps.plot_dt = 2e-3;  
 ps.save_as_movie = false;
 ps.plotstyle = 'vp';
 
@@ -26,7 +26,7 @@ rho0 = 10;     % density
 c0   = 10; 
 
 %% domain         
-ps.Omega = [-0.2, 0.5]; 
+ps.Omega = [-0.2, 0.6]; 
 Vp = ps.dx; %volume per particle
 
 %% active particles

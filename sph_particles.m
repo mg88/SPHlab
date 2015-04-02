@@ -4,8 +4,8 @@
 % - boundary conditions (ghost particles)
 % - non-reflective boundary
 % - check against c++ code
-% - m-scheme
 % - variable h
+% - regulariseInitialDensity
 
 classdef sph_particles < handle
 %% SPH for HVI  - Markus Ganser - TU/e - 2015
@@ -510,6 +510,7 @@ classdef sph_particles < handle
         end
         %%
         function comp_volume(obj)
+            %only necessary for v-scheme
             obj.Vj = obj.mj(:)./obj.rhoj(:);
         end        
         %%
@@ -529,12 +530,9 @@ classdef sph_particles < handle
                 comp_dRho_m_scheme(obj);
             elseif strcmp(obj.scheme,'v')
                 comp_dRho_v_scheme(obj);
-            elseif strcmp(obj.scheme,'c')
-                comp_dRho_classic(obj);
             else
                 error('scheme not supported');
-            end            
-            
+            end                        
         end
         %%
         function comp_dRho_m_scheme(obj)
@@ -583,29 +581,7 @@ classdef sph_particles < handle
             obj.drhoj = ((obj.AedgesXj>0) * qrho_ij +...
                          (obj.AedgesXj<0) * qrho_ji)...
                         .*obj.rhoj./obj.Omegaj;
-%             a = obj.drhoj;
-%             comp_dRho_classic(obj);
-%             b = obj.drhoj;
-%             if any(abs(a-b)>1e-10)
-%                 keyboard
-%             end
         end                        
-        %%
-        function comp_dRho_classic(obj)
-            if ~obj.distances_uptodate
-                comp_distances(obj);
-            end
-            obj.drhoj  = zeros(size(obj.drhoj)); 
-            qrho_ij = zeros(size(obj.pij,1),1);
-            qrho_ij(obj.active_k_pij,:) = ...
-                obj.rhoj(obj.Ii,:).*obj.Vj(obj.Ij,:).*... %density flux
-                sum(... %scalar product v*n 
-                (obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:)) .*...
-                (obj.dWij*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
-                ,2);
-            %add up all the corresponding density flux in each node
-            obj.drhoj = abs(obj.AedgesXj) * qrho_ij;      
-        end 
         %%
         function comp_forces(obj)
             if ~obj.distances_uptodate
@@ -615,8 +591,6 @@ classdef sph_particles < handle
                 comp_Fint_m_scheme(obj);
             elseif strcmp(obj.scheme,'v')
                 comp_Fint_v_scheme(obj);
-            elseif strcmp(obj.scheme,'c')
-                comp_Fint_classic(obj);
             else
                 error('scheme not supported');
             end
@@ -636,58 +610,39 @@ classdef sph_particles < handle
             p_rho_omega_j = obj.pj./(obj.Omegaj.*obj.rhoj.*obj.rhoj);
             
             qF_int_ij(obj.active_k_pij,:)=...
-                        -((obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... % hi
-                        (p_rho_omega_j(obj.Ii).*obj.dWij)...  %<- change here for variable h
-                        *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:)...
-                        +...
-                        (obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... %hj
-                        (p_rho_omega_j(obj.Ij).*obj.dWij)...  %<- change here
-                        *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
-            
+                -((obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... % hi
+                (p_rho_omega_j(obj.Ii).*obj.dWij)...  %<- change here for variable h
+                *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:)...
+                +...
+                (obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... %hj
+                (p_rho_omega_j(obj.Ij).*obj.dWij)...  %<- change here
+                *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
+
             %spread fluxes to the nodes
             for dimension=1:obj.dim
-                obj.F_int(:,dimension)  = obj.AedgesXj * qF_int_ij(:,dimension);
+                obj.F_int(:,dimension) = obj.AedgesXj * qF_int_ij(:,dimension);
             end     
         end
-                %%
+        %%
         function comp_Fint_v_scheme(obj) %internal forces  
             %compute the flux
             qF_int_ij = zeros(size(obj.pij,1),obj.dim);
             p_omega_j = obj.pj./(obj.Omegaj);
             
             qF_int_ij(obj.active_k_pij,:)=...
-                        -((obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... % hi
-                        (p_omega_j(obj.Ii).*obj.dWij)...  %<- change here
-                        *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:)...
-                        +...
-                        (obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... %hj
-                        (p_omega_j(obj.Ij).*obj.dWij)...  %<- change here
-                        *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
+                -((obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... % hi
+                (p_omega_j(obj.Ii).*obj.dWij)...  %<- change here
+                *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:)...
+                +...
+                (obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... %hj
+                (p_omega_j(obj.Ij).*obj.dWij)...  %<- change here
+                *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
             
             %spread fluxes to the nodes
             for dimension=1:obj.dim
                 obj.F_int(:,dimension)  = obj.AedgesXj * qF_int_ij(:,dimension);
             end     
-        end
-        %%
-        function comp_Fint_classic(obj) %internal forces  
-            %compute the flux
-            qF_int_ij = zeros(size(obj.pij,1),obj.dim);
-            qF_int_ij(obj.active_k_pij,:)   = ...
-                    - ((obj.Vj(obj.Ii,:) .* obj.Vj(obj.Ij,:) .*... %1=i; 2=j
-                         (obj.pj(obj.Ii,:)+obj.pj(obj.Ij,:)) .* ... 
-                          obj.dWij)...
-                          *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:);
-            %spread fluxes to the nodes
-            for dimension=1:obj.dim
-                obj.F_int(:,dimension)  = obj.AedgesXj * qF_int_ij(:,dimension);
-            end
-            
-            
-%             if any(isnan(obj.F_int))
-%                keyboard
-%             end
-        end
+        end  
         %%
         function comp_Fdiss(obj)      %page415-violeau | particle-friction   
             %compute the flux

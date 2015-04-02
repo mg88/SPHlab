@@ -8,7 +8,7 @@ ps.dx      = 1e-2;
 ps.tend    = 0.5;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
-
+ps.scheme  = 'v';
 %IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
@@ -17,7 +17,7 @@ ps.plotstyle = 'patches';
 
 %% material parameter
 rho0 = 1;     %relativ density
-c0   = 50;
+c0   = 200;
 
 %% domain
 ps.Omega = [0, 1;  %x
@@ -37,7 +37,7 @@ startpoint = [0.42,0.41];
 endpoint   = [0.8,0.41];
 v0   = [0,0];
 I = add_line2d(ps,startpoint,endpoint,layer);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0, true)
 
 %% -----------------------------------------------------
 

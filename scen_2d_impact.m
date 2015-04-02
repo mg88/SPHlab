@@ -8,13 +8,13 @@ ps.write_data = false;
 ps.read_data  = false;
 ps.input_name = 'test';
 
-ps.dx       = 8e-3;
+ps.dx       = 3e-3;
 ps.dtfactor = 0.5;
 ps.tend     = 0.3;    
 ps.eta      = 1.3;     
 ps.eta2     = 2;  
 ps.kernel   = 'M4';
-ps.scheme   = 'c';
+ps.scheme   = 'm';
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
