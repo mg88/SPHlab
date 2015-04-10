@@ -10,7 +10,7 @@ ps.eta     = 1.2;
 ps.eta2    = 2;  
 
 %IO
-ps.plot_dt = 1e-2;   
+ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
 
@@ -33,8 +33,7 @@ addproperties(ps, I, Vp, rho0, v0,c0, false)
              
 %set rho0
 N        = size(ps.Iin,1);
-ps.rho0j  = ones(N,1);
-ps.rho0j(floor(N/2)-100) = 2;  % peak in the center
+ps.rhoj(floor(N/2-50)) = 1.5;  % peak in the center
 
 %% -----------------------------------------------------
 

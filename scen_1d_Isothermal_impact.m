@@ -7,9 +7,9 @@ ps = sph_scenario();
 ps.read_data = false;
 ps.input_name = 'test';
 
-ps.dx      = 8e-3;
-ps.dtfactor   = 0.4;  
-ps.tend    = 0.5;    
+ps.dx      = 1e-3;
+ps.dtfactor   = 0.04;  
+ps.tend    = 0.4;    
  
 ps.eta     = 1.2;     
 ps.eta2    = 2;
@@ -17,31 +17,53 @@ ps.kernel  = 'M4';
 ps.scheme   = 'v';
 
 %IO
-ps.plot_dt = 2e-3;  
+ps.plot_dt = 1e-2;  
 ps.save_as_movie = false;
 ps.plotstyle = 'dpv';
 
  %% material parameter
-rho0 = 1;     % density
-c0   = 50; 
+
 
 %% domain         
-ps.Omega = [-1, 1]; 
+ps.Omega = [0, 1.8]; 
 Vp = ps.dx; %volume per particle
 
 %% active particles
 
-%left
+%1
 leftpoint = 0.0;
-rightpoint= -0.7;
-v0   = 0;
+rightpoint= 0.6-ps.dx;
+v0   = 1;
+rho0 = 1;     % density
+c0   = 1; %ma=1 (Ma=vimp/c0)
 I = add_line1d(ps,leftpoint,rightpoint);
 addproperties(ps, I, Vp, rho0, v0,c0, false)
 
-% right
-leftpoint = leftpoint+ps.dx;
-rightpoint= 0.7;
-v0   = 1;
+%2
+leftpoint = 0.6;
+rightpoint= 0.8-ps.dx;
+v0   = 0;
+rho0 = 1;     % density
+c0   = 1;  %ma=1
+I = add_line1d(ps,leftpoint,rightpoint);
+addproperties(ps, I, Vp, rho0, v0,c0, false)
+
+%3
+leftpoint = 0.8;
+rightpoint= 1.2-ps.dx;
+v0   = 0;
+rho0 = 0.25;     % density
+c0   = 0.5;  %ma=2
+I = add_line1d(ps,leftpoint,rightpoint);
+addproperties(ps, I, Vp, rho0, v0,c0, false)
+
+
+%4
+leftpoint = 1.2;
+rightpoint= 1.4-ps.dx;
+v0   = 0;
+rho0 = 1;     % density
+c0   = 1;  %ma=1
 I = add_line1d(ps,leftpoint,rightpoint);
 addproperties(ps, I, Vp, rho0, v0,c0, false)
 

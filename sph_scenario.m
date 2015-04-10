@@ -28,6 +28,7 @@ classdef sph_scenario < handle
        
         %% material parameter
         rho0j      % density
+        rhoj
         c0j       % speed of sound
         beta      % for surface tension
         mu        % for dissipation
@@ -100,6 +101,7 @@ classdef sph_scenario < handle
             obj.vj(I,:)  = ones(size(I,1),1)*v0;     
             obj.c0j(I,1)   = c0;
             obj.rho0j(I,1) = rho0;
+            obj.rhoj(I,1) = rho0;
             obj.mj(I,1)    = m0;
             obj.Imaterial = [obj.Imaterial;...
                              [I(1) I(end)] ];
