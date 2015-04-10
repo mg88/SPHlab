@@ -15,6 +15,7 @@ ps.eta     = 1.2;
 ps.eta2    = 2;
 ps.kernel  = 'M4';
 ps.scheme   = 'v';
+ps.h_const  = false;
 
 %IO
 ps.plot_dt = 1e-2;  
@@ -77,3 +78,4 @@ obj_particles = sph_particles(ps);
 %% start simulation
 start_simulation(obj_particles)
 
+%Elapsed time is 242.124032 seconds.

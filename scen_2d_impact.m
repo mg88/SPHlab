@@ -10,11 +10,12 @@ ps.input_name = 'test';
 
 ps.dx       = 4e-3;
 ps.dtfactor = 0.5;
-ps.tend     = 0.2;    
-ps.eta      = 1.3;     
+ps.tend     = 0.05;    
+ps.eta      = 1.2;     
 ps.eta2     = 2;  
 ps.kernel   = 'M4';
 ps.scheme   = 'v';
+ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
@@ -63,4 +64,22 @@ dispdata(ps);
 obj_particles = sph_particles(ps);
 %% start simulation
 start_simulation(obj_particles)
+
+% t=0.000104s (1 iter/sec ,Ncon = 42526)
+% t=0.003952s (38 iter/sec ,Ncon = 42743)
+% t=0.0076962s (37 iter/sec ,Ncon = 43197)
+% t=0.010194s (25 iter/sec ,Ncon = 43691)
+% t=0.013536s (33 iter/sec ,Ncon = 44337)
+% t=0.016803s (32 iter/sec ,Ncon = 45206)
+% t=0.020016s (31 iter/sec ,Ncon = 45814)
+% t=0.021754s (17 iter/sec ,Ncon = 45909)
+% t=0.024511s (26 iter/sec ,Ncon = 45945)
+% t=0.027194s (25 iter/sec ,Ncon = 45945)
+% t=0.030013s (26 iter/sec ,Ncon = 45945)
+% t=0.031594s (15 iter/sec ,Ncon = 45945)
+% t=0.034295s (25 iter/sec ,Ncon = 45945)
+% t=0.036874s (24 iter/sec ,Ncon = 45945)
+% t=0.039565s (25 iter/sec ,Ncon = 45945)
+
+%Elapsed time is 20.941137 seconds.
 

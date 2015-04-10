@@ -12,6 +12,7 @@ classdef sph_scenario < handle
         eta2        % eta2*h is the cutoff radius 
         kernel      % M4 | gauss
         scheme      % m | v
+        h_const     % is h constant (true) or dependent on density (false) 
         %% geometry
         Omega       % domain  [x_left, x_right]^n
         
@@ -30,6 +31,7 @@ classdef sph_scenario < handle
         rho0j      % density
         rhoj
         c0j       % speed of sound
+        cj
         beta      % for surface tension
         mu        % for dissipation
         
@@ -76,7 +78,7 @@ classdef sph_scenario < handle
            obj.beta = 0;
            obj.mu   = 0;
            obj.geo_noise = 0;
-           
+           obj.h_const = false;
            obj.iter  = 1;
         end       
         
@@ -98,10 +100,11 @@ classdef sph_scenario < handle
         
         function addproperties(obj, I, Vp, rho0, v0,c0,boun) %constant mass/Volume
             m0 = Vp * rho0;            
-            obj.vj(I,:)  = ones(size(I,1),1)*v0;     
+            obj.vj(I,:)    = ones(size(I,1),1)*v0;     
             obj.c0j(I,1)   = c0;
+            obj.cj(I,1)    = c0;
             obj.rho0j(I,1) = rho0;
-            obj.rhoj(I,1) = rho0;
+            obj.rhoj(I,1)  = rho0;
             obj.mj(I,1)    = m0;
             obj.Imaterial = [obj.Imaterial;...
                              [I(1) I(end)] ];

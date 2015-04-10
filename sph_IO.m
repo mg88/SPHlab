@@ -269,7 +269,7 @@ classdef sph_IO < handle
             data = obj.obj_particles;
             x=data.Xj(:,1);
             y=data.Xj(:,2);
-            a=data.h;
+            a=data.hj;
             z=data.pj;
             opacity = 0.3;
             clf
@@ -293,11 +293,12 @@ classdef sph_IO < handle
                 t= 0:pi/10:2*pi;
                 rep_x = repmat(x',[size(t,2),1]);
                 rep_y = repmat(y',[size(t,2),1]);
+                rep_r = repmat(sizeOfCirlce',[size(t,2),1]);
                 rep_z = repmat(z',[size(t,2),1]);
                 rep_t = repmat(t',[ 1, size(x,1)]);
 
-                scatterPoints = patch((sizeOfCirlce*sin(rep_t)+ rep_x),...
-                                      (sizeOfCirlce*cos(rep_t)+rep_y),...
+                scatterPoints = patch((rep_r.*sin(rep_t)+ rep_x),...
+                                      (rep_r.*cos(rep_t)+rep_y),...
                                        rep_z,'edgecolor','none');
                 alpha(scatterPoints,opacity);
 
@@ -323,11 +324,13 @@ classdef sph_IO < handle
     
             %speed of sound
             %c = readVariable('c',filename,time_str);
-            obj_scen.c0j = readVariable ('c',filename,time_str);
+            obj_scen.c0j = readVariable ('c0',filename,time_str);
+            obj_scen.cj = readVariable('c',filename,time_str);
 
             %density            
             %rho = readVariable('rho',filename,time_str);
-            obj_scen.rho0j = readVariable('rho',filename,time_str);
+            obj_scen.rho0j = readVariable('rho0',filename,time_str);
+            obj_scen.rhoj = readVariable('rho',filename,time_str);
      
             %mass
             obj_scen.mj = readVariable('m',filename,time_str);
@@ -361,7 +364,9 @@ classdef sph_IO < handle
             writeVariable(filename,time,'u',obj_particle.vj(:,1));
             writeVariable(filename,time,'v',obj_particle.vj(:,2));
             writeVariable(filename,time,'c',obj_particle.cj);
+            writeVariable(filename,time,'c0',obj_particle.cj0);
             writeVariable(filename,time,'rho',obj_particle.rhoj);
+            writeVariable(filename,time,'rho0',obj_particle.rho0j);
             writeVariable(filename,time,'m',obj_particle.mj);                        
             
             %% out

@@ -4,7 +4,7 @@
 % - boundary conditions (ghost particles)
 % - non-reflective boundary
 % - check against c++ code
-% - variable h
+% - right now: dh/drho = 0
 % - regulariseInitialDensity
 
 classdef sph_particles < handle
@@ -68,18 +68,25 @@ classdef sph_particles < handle
         xij_h  %normalized  = hat(xij)
         nIj
         %kernel
+        
         Wij
-        dWij
+        Wij_hi
+        Wij_hj
+        dWij   % to remove later
+        dWij_hi
+        dWij_hj
         ddWij
         dWij_over_rij
         %smoothing length
-        h 
+        hj 
+        h_const  %boolean
         kernel    % M4 | gauss
         %Domain
         Omega
         cell_of_j
         Nc 
-        Rt        
+        eta2_cutoff        % cut-off-factor
+        Rtcell             % size of the cells (first cut-off)
         obsolete_k_pij;
         %some flags
         distances_uptodate
@@ -104,7 +111,7 @@ classdef sph_particles < handle
             obj.rho0j = obj_scen.rho0j;            
             obj.rhoj  = obj_scen.rhoj;
             obj.cj0   = obj_scen.c0j;
-            obj.cj    = obj.cj0;
+            obj.cj    = obj_scen.cj;            
             
             obj.beta = obj_scen.beta;
             obj.mu   = obj_scen.mu;
@@ -112,10 +119,12 @@ classdef sph_particles < handle
             obj.mj   = obj_scen.mj;    
                         
             %initial smoothing length
-            obj.h     = obj_scen.dx * obj_scen.eta; %constant!
-            obj.kernel= obj_scen.kernel;
-            obj.Rt    = obj_scen.eta2* obj.h;
-            
+            obj.hj       = ones(obj.N,1)*obj_scen.dx * obj_scen.eta; 
+            obj.h_const  = obj_scen.h_const;
+            obj.kernel   = obj_scen.kernel;
+        %    obj.Rt      = obj_scen.eta2* max(obj.hj);
+            obj.eta2_cutoff = obj_scen.eta2;
+        
             obj.Iin   = obj_scen.Iin;
             obj.Iboun = obj_scen.Iboun;
             obj.Iall  = [obj.Iin;obj.Iboun];
@@ -190,30 +199,37 @@ classdef sph_particles < handle
              comp_dRho(obj)
              update_half_step(obj)
              update_postion(obj)   
+             if ~obj.h_const
+                 update_h(obj)
+             end
         end     
         %%
         function update_dt(obj) 
             if obj.dim == 1
-                obj.dt = obj.dtfactor * min(obj.h./(abs(obj.cj + obj.vj)));
+                obj.dt = obj.dtfactor * min(obj.hj./(abs(obj.cj + obj.vj)));
             else
-                obj.dt = obj.dtfactor * min(obj.h./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
+                obj.dt = obj.dtfactor * min(obj.hj./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
             end
           %  obj.dt = 1e-5
         end        
         %% neighbour search -  main 
         function search_neighbours(obj)
+           cut_off_radius = obj.eta2_cutoff* max(obj.hj);
            if obj.firststep
+               obj.Rtcell = cut_off_radius * 1.1; %savety-factor
+               initial_search_neighbours(obj);
+           elseif (obj.Rtcell < cut_off_radius) %ToDo: make cells smaller
+               obj.Rtcell = cut_off_radius * 1.1; %savety-factor
                initial_search_neighbours(obj);
            else
                update_neighbours(obj);
-               %initial_search_neighbours(obj);
            end           
         end        
         %%
         function initial_search_neighbours(obj) %upper right and lower left cells are not included
-            
+            disp('create new cell-structure');
             %% create cell structure
-            obj.Nc = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rt);
+            obj.Nc = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rtcell);
             if obj.dim ==1
                 obj.cell_of_j = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
                     .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
@@ -406,7 +422,9 @@ classdef sph_particles < handle
             obj.xij_h = obj.xij_h./(obj.rij*ones(1,obj.dim));  
             
             % flag particle which are within the cutoff radius           ^       
-            temp = (obj.rij < obj.Rt).*(obj.rij > 0);
+            temp = (obj.rij < obj.eta2_cutoff *...
+                      max(obj.hj(obj.pij(:,1)),obj.hj(obj.pij(:,2))))...
+                   .*(obj.rij > 0);
             obj.active_k_pij = logical(temp);
             obj.Ii = obj.pij(logical(temp),1);
             obj.Ij = obj.pij(logical(temp),2);
@@ -437,27 +455,80 @@ classdef sph_particles < handle
             if ~obj.distances_uptodate
                 comp_distances(obj);
             end
-            if strcmp(obj.kernel,'gauss')
-                update_kernel_gauss(obj);
-            elseif strcmp(obj.kernel,'M4')
-                update_kernel_M4(obj);  
+            if obj.h_const % if h is constant
+                if strcmp(obj.kernel,'gauss')
+                    update_kernel_gauss_hconst(obj);
+                elseif strcmp(obj.kernel,'M4')
+                    update_kernel_M4_hconst(obj);  
+                else
+                    error([obj.kernel,' as kernel is not implemented yet']);
+                end
+                obj.Wij_hi = obj.Wij;
+                obj.Wij_hj = obj.Wij;
+                obj.dWij_hi = obj.dWij;
+                obj.dWij_hj = obj.dWij;
             else
-                error([obj.kernel,' as kernel is not implemented yet']);
+                if strcmp(obj.kernel,'gauss')
+                    error('todo');
+                    update_kernel_gauss(obj);
+                elseif strcmp(obj.kernel,'M4')
+                    update_kernel_M4(obj);   
+                else
+                    error([obj.kernel,' as kernel is not implemented yet']);
+                end
             end
         end
         %% Gauss kernel
-        function update_kernel_gauss(obj)
+        function update_kernel_gauss_hconst(obj)
             sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
-            obj.Wij   = 1/(obj.h^obj.dim)* sigma(obj.dim) *...
-                        exp(-(obj.rij(obj.active_k_pij)/obj.h).^2);
-            obj.dWij  = obj.Wij.* -2.*obj.rij(obj.active_k_pij)/obj.h^2;
-            obj.dWij_over_rij = obj.Wij.* -2./obj.h^2;
-            obj.ddWij = -2/obj.h^2*(obj.dWij.* obj.rij(obj.active_k_pij) + obj.Wij );
+            obj.Wij   = 1/(obj.hj(1)^obj.dim)* sigma(obj.dim) *...
+                        exp(-(obj.rij(obj.active_k_pij)/obj.hj(1)).^2);
+            obj.dWij  = obj.Wij.* -2.*obj.rij(obj.active_k_pij)/obj.hj(1)^2;
+            obj.dWij_over_rij = obj.Wij.* -2./obj.hj(1)^2;
+            obj.ddWij = -2/obj.hj(1)^2*(obj.dWij.* obj.rij(obj.active_k_pij) + obj.Wij );
         end
         %% M4 spline kernel
         function update_kernel_M4(obj)
-            sigma = [2/3; 10/(7*pi); 1/pi] ./ (obj.h.^obj.dim); %normalisation constant
-            r = obj.rij(obj.active_k_pij) / obj.h;
+            sigma = [2/3; 10/(7*pi); 1/pi];
+            %normalisation constant
+            r = (obj.rij(obj.active_k_pij)*ones(1,2)) ./ [obj.hj(obj.Ii),obj.hj(obj.Ij)];
+%              r = linspace(0,2,100);
+            w   = sigma(obj.dim)* ...
+                (r<2)  .*(...
+                1/4*(2-r).^3   ...
+                - (1-r).^3 .* (r<1)...
+                );
+            obj.Wij_hi = w(:,1)./ (obj.hj(obj.Ii).^obj.dim);
+            obj.Wij_hj = w(:,2)./ (obj.hj(obj.Ij).^obj.dim);
+            obj.Wij =0.5*(obj.Wij_hi + obj.Wij_hj);
+            
+            dw   = sigma(obj.dim)* ... 
+                (r<2)  .*(...
+                -3/4*(2-r).^2  ...
+                + 3*(1-r).^2 .* (r<1)...
+                );
+            obj.dWij_hi = 1./obj.hj(obj.Ii).^(obj.dim+1) .* dw(:,1);
+            obj.dWij_hj = 1./obj.hj(obj.Ij).^(obj.dim+1) .* dw(:,2);
+            obj.dWij =0.5*(obj.dWij_hi+obj.dWij_hj);
+                                    
+            if obj.beta ~= 0 % necessary only for surface tension
+                error('ddW not implented for not constant h yet');
+                obj.dWij_over_rij = obj.dWij ./ obj.rij(obj.active_k_pij); 
+
+                obj.ddWij = 1/obj.hj^2 * sigma(obj.dim) .* ...
+                    (r<2)  .*(...
+                    +6/4*(2-r)  ...
+                    - 6*(1-r) .* (r<1)...
+                    ); 
+            end
+%            plot(r,obj.Wij,r,obj.dWij);
+%            keyboard
+        end 
+        %%
+        function update_kernel_M4_hconst(obj)
+            %just use an arbitrary (here the first) h
+            sigma = [2/3; 10/(7*pi); 1/pi] ./ (obj.hj(1).^obj.dim); %normalisation constant
+            r = obj.rij(obj.active_k_pij) / obj.hj(1);
 %              r = linspace(0,2,100);
             obj.Wij   = sigma (obj.dim) .*...
                 (r<2)  .*(...
@@ -465,7 +536,7 @@ classdef sph_particles < handle
                 - (1-r).^3 .* (r<1)...
                 );
             
-            obj.dWij   =  1/obj.h * sigma (obj.dim) .*... 
+            obj.dWij   =  1/obj.hj(1) * sigma (obj.dim) .*... 
                 (r<2)  .*(...
                 -3/4*(2-r).^2  ...
                 + 3*(1-r).^2 .* (r<1)...
@@ -474,7 +545,7 @@ classdef sph_particles < handle
             if obj.beta ~= 0 % necessary only for surface tension
                 obj.dWij_over_rij = obj.dWij ./ obj.rij(obj.active_k_pij); 
 
-                obj.ddWij = 1/obj.h^2 * sigma (obj.dim) .* ...
+                obj.ddWij = 1/obj.hj(1)^2 * sigma (obj.dim) .* ...
                     (r<2)  .*(...
                     +6/4*(2-r)  ...
                     - 6*(1-r) .* (r<1)...
@@ -482,7 +553,7 @@ classdef sph_particles < handle
             end
 %            plot(r,obj.Wij,r,obj.dWij);
 %            keyboard
-        end              
+        end        
         %%
         function update_full_step(obj) 
             if ~obj.firststep
@@ -510,6 +581,11 @@ classdef sph_particles < handle
         function update_postion(obj) 
              obj.Xj(obj.Iin,:)      = obj.Xj(obj.Iin,:) + obj.dt * obj.vj_half(obj.Iin,:);
              obj.distances_uptodate = false;
+        end
+        %%
+        function update_h(obj)
+           obj.hj = obj.hj - obj.dt * (obj.hj./obj.rhoj) .* obj.drhoj;
+           %disp(['min: ',num2str(min(obj.hj)),'; max: ',num2str(max(obj.hj))]);
         end
         %%
         function comp_volume(obj)
@@ -552,13 +628,13 @@ classdef sph_particles < handle
                 obj.mj(obj.Ij) .*... 
                 sum(... %scalar product v*n 
                 (obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:)) .*...
-                (obj.dWij*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
+                (obj.dWij_hi*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
                 ,2);
             qrho_ji(obj.active_k_pij,:) =  ... % j -> i %hj
                 obj.mj(obj.Ii).*...
                  sum(... %scalar product v*n 
                 (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
-                (obj.dWij*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
+                (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
                 ,2);
                         
             %add up all the corresponding density flux in each node
@@ -575,13 +651,13 @@ classdef sph_particles < handle
                 obj.Vj(obj.Ij) .*... 
                 sum(... %scalar product
                 (obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:)) .*...
-                (obj.dWij*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
+                (obj.dWij_hi*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
                 ,2);
             qrho_ji(obj.active_k_pij,:) =  ... % j -> i %hj
                 obj.Vj(obj.Ii).*...
                  sum(... %scalar product 
                 (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
-                (obj.dWij*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
+                (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
                 ,2);
                         
             %add up all the corresponding density flux in each node
