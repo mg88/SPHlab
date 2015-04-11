@@ -5,7 +5,7 @@ close all; clear; clc;
 ps = sph_scenario();
 
 ps.dx      = 1e-2;
-ps.tend    = 0.5;    
+ps.tend    = 0.2;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
 ps.scheme  = 'v';

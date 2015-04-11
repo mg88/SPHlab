@@ -1,6 +1,5 @@
 %% ToDo:
 % - internal energy - non-isothermal
-% - rarefaction waves -> negative pressure!
 % - boundary conditions (ghost particles)
 % - non-reflective boundary
 % - check against c++ code
@@ -12,9 +11,8 @@ classdef sph_particles < handle
 % PARTICLES class - defines all function needed to run a sph simulation
     
 %% 
-    properties
-        %amount of particle
-        N
+    properties        
+        N   %amount of particle
         dim
         %forces
         F_total
@@ -26,6 +24,7 @@ classdef sph_particles < handle
         rho0j
         rhoj               
         rhoj_half
+        %change of density
         drhoj       
         drhoj_diss
         %pressure
@@ -60,6 +59,7 @@ classdef sph_particles < handle
         scheme 
                 
         %Time
+        t
         dt
         dtfactor %savety factor for timestepping
         tend                
@@ -88,6 +88,10 @@ classdef sph_particles < handle
         eta2_cutoff        % cut-off-factor
         Rtcell             % size of the cells (first cut-off)
         obsolete_k_pij;
+        % boundary condition        
+        %non-refelcting
+        omega_nr_bc
+        
         %some flags
         distances_uptodate
         firststep
@@ -122,26 +126,27 @@ classdef sph_particles < handle
             obj.hj       = ones(obj.N,1)*obj_scen.dx * obj_scen.eta; 
             obj.h_const  = obj_scen.h_const;
             obj.kernel   = obj_scen.kernel;
-        %    obj.Rt      = obj_scen.eta2* max(obj.hj);
             obj.eta2_cutoff = obj_scen.eta2;
         
-            obj.Iin   = obj_scen.Iin;
-            obj.Iboun = obj_scen.Iboun;
-            obj.Iall  = [obj.Iin;obj.Iboun];
-            obj.Imaterial = obj_scen.Imaterial;
-                                               
+            obj.Iin         = obj_scen.Iin;
+            obj.Iboun       = obj_scen.Iboun;
+            obj.Iall        = [obj.Iin;obj.Iboun];
+            obj.Imaterial   = obj_scen.Imaterial;
+            obj.omega_nr_bc = obj_scen.omega_nr_bc;     
+            
+            
             obj.dtfactor  = obj_scen.dtfactor;
             obj.tend   = obj_scen.tend;           
             obj.vj     = obj_scen.vj;
+                                    
             obj.F_int  = zeros(obj.N,obj.dim);
             obj.F_diss = zeros(obj.N,obj.dim);
             obj.F_ST   = zeros(obj.N,obj.dim);
             obj.nIj    = zeros(obj.N,obj.dim);
-
             obj.drhoj     = zeros(obj.N,1);
             obj.rhoj_half = zeros(obj.N,1);
             obj.vj_half   = zeros(obj.N,obj.dim);
-           
+                  
             obj.pij = [];            
             obj.distances_uptodate = false;
             obj.firststep = true;
@@ -151,6 +156,7 @@ classdef sph_particles < handle
 
             obj.scheme = obj_scen.scheme;
 
+            obj.t = 0;
             %check
             checkIfInDomain(obj);
             if obj.N > 31000
@@ -163,19 +169,18 @@ classdef sph_particles < handle
         function start_simulation(obj)            
             disp('#### start of the simulation ####');
             %% time iteration
-            t    = 0;
             icount = 1;
             tic
             ttic = tic;
             obj.IO.initialize()
-            while t < obj.tend
+            while obj.t < obj.tend
                 update_dt(obj);
                 perform_timestep(obj);
-                obj.IO.do(t,obj);  %plot and save data
-                t = t + obj.dt;
+                obj.IO.do(obj);  %plot and save data
+                obj.t = obj.t + obj.dt;
                 %iterations per seconds
                 if toc > 1 %seconds
-                    disp(['t=',num2str(t),...
+                    disp(['t=',num2str(obj.t),...
                         's (',num2str(icount),' iter/sec ,Ncon = ',num2str(size(obj.pij,1)),')']);
                     icount = 1;
                     tic    
@@ -184,7 +189,7 @@ classdef sph_particles < handle
                 icount = icount +1;    
                % keyboard
             end
-            obj.IO.do(t,obj);  %plot and save last step
+            obj.IO.do(obj);  %plot and save last step
             obj.IO.finalize();
             toc(ttic)
         end
@@ -194,9 +199,12 @@ classdef sph_particles < handle
              comp_pressure(obj);
              comp_volume(obj);
              search_neighbours(obj);
-             update_kernel(obj)
+             comp_kernel(obj)
              comp_forces(obj)
              comp_dRho(obj)
+             if ~isempty(obj.omega_nr_bc)
+                comp_BCdamping(obj)
+             end
              update_half_step(obj)
              update_postion(obj)   
              if ~obj.h_const
@@ -286,10 +294,13 @@ classdef sph_particles < handle
                 con = sparse(obj.pij==kk);
                 obj.AedgesXj(kk,con(:,1))= 1;  %outgoing edges
                 obj.AedgesXj(kk,con(:,2))= -1; % ingoing edges                  
-            end 
+            end
+            
+            %reset update_neighbours help variables
+            obj.obsolete_k_pij = [];
         end
         %%
-        function Ashift = lockup_cellshift(obj,jshift)
+        function Ashift = lookup_cellshift(obj,jshift)
            if obj.dim==1
               switch jshift
                   case 1
@@ -327,13 +338,14 @@ classdef sph_particles < handle
         end     
         %%
         function update_neighbours (obj) 
+             
             %% create cell structure
             if obj.dim == 1
                 cell_of_j_new = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
                     .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
                     +1; %in which sector is the particle      
                 if any(cell_of_j_new > obj.Nc)  || any(cell_of_j_new < 0)                    
-                    warning(' - some particles not in cell structure anymore! - ')
+                    warning(' - some particles are not in cell structure anymore! - ')
                     keyboard
                 end
            
@@ -344,7 +356,7 @@ classdef sph_particles < handle
                 cell_of_j_new = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
                 if any(cell_of_j_2d(1) > obj.Nc(1) || cell_of_j_2d(2) > obj.Nc(2))...
                               || any(any(cell_of_j_2d < 0))                    
-                    warning(' - someparticles not in cell structure anymore! - ')
+                    warning(' - some particles are not in cell structure anymore! - ')
                     keyboard
                 end
             end
@@ -356,19 +368,18 @@ classdef sph_particles < handle
             
             %% loop over all particels which have changed the cell
             for j = j_changes_cell'  
-                cellshift = lockup_cellshift(obj,cell_shift_of_j(j)); %cells ahead in moving direction
+                cellshift = lookup_cellshift(obj,cell_shift_of_j(j)); %cells ahead in moving direction
                 
                 %find obsolete points (all particels in cells which are no
                 %neighbours any more - right now, one behind ...|X|j|o|o|...
                 cells_to_look_at = obj.cell_of_j(j) - cellshift;
-                i_in_obs_neighb_cell = sparse(double(ismember(obj.cell_of_j,cells_to_look_at)));
+                i_in_obs_neighb_cell = (double(ismember(obj.cell_of_j,cells_to_look_at)));
                 
                 %find the belonging connectivities
                 i_in_obs_neighb_cell(j,1) = 5;  % just a number,to obtain an unsymmetric connection - abs(+-5 -+1)=4
                 temp = (i_in_obs_neighb_cell'*obj.AedgesXj);
                 pij_obs = (abs(temp)==4);
-                obj.obsolete_k_pij = [obj.obsolete_k_pij;...
-                                         find(pij_obs')];
+                new_obsolete_k_pij = find(pij_obs');
                     
                 % move j to new cell (each particel at one time for
                 % consistency)     % ...|o|j|o|o|... ->  ...|o|o|j|o|...
@@ -381,9 +392,11 @@ classdef sph_particles < handle
                                                                 
                 % clear all obsolete connectivities of node j in the
                 % adjacency matrix nodes <-> edges
-                obj.AedgesXj(:,obj.obsolete_k_pij) = 0;
+                obj.AedgesXj(:,new_obsolete_k_pij) = 0;
+                obj.obsolete_k_pij = [obj.obsolete_k_pij;...
+                                         new_obsolete_k_pij];
                 % http://de.mathworks.com/matlabcentral/newsreader/view_thread/283923
-                             
+
                 if nCon_new > 0
                     %%new connectivies               
                     pij_new = [j*ones(nCon_new,1),i_in_new_neighb_cell]; 
@@ -393,19 +406,19 @@ classdef sph_particles < handle
                          obj.pij(k_pij_new,:) = pij_new;   
                          obj.obsolete_k_pij = obj.obsolete_k_pij(nCon_new+1:end);    
                          obj.pij(obj.obsolete_k_pij,:) =...;
-                            ones(nCon_obsolete-nCon_new,1)*[j,j];  %set a self connection 
+                            ones(nCon_obsolete-nCon_new,1)*[j,j];  %set a self connection                         
                     else
                          %write on present connectivities
                          obj.pij(obj.obsolete_k_pij,:)= pij_new (1:nCon_obsolete,:);
                          %and create new ones
                          n_pij_new = nCon_new - nCon_obsolete;
-                         obj.pij = [obj.pij;
+                         obj.pij   = [obj.pij;
                                      pij_new(nCon_obsolete+1:nCon_new,:)];
                          n_Apij    = size(obj.pij,1);
                          k_pij_new = [obj.obsolete_k_pij;...
                                      ((n_Apij-n_pij_new+1):n_Apij)'];
                          % enlarge adjacency matrix 
-                         obj.AedgesXj(obj.N,n_Apij)=0;
+                         obj.AedgesXj(obj.N,n_Apij) = 0;                         
                     end
 
                     %% update adjacency matrix 
@@ -413,7 +426,8 @@ classdef sph_particles < handle
                     obj.AedgesXj (j , k_pij_new) = 1; %outgoing
                     obj.AedgesXj (i_in_new_neighb_cell,k_pij_new) = -1*speye(nCon_new); %ingoing  
                 end
-            end              
+            end   
+
         end                        
         %%
         function comp_distances(obj)
@@ -451,15 +465,15 @@ classdef sph_particles < handle
              obj.nIj(I,:)=0;    %take care for the almost zero values - set them zero                         
         end         
         %% - choose a kernel function
-        function update_kernel(obj)
+        function comp_kernel_old(obj)
             if ~obj.distances_uptodate
                 comp_distances(obj);
             end
             if obj.h_const % if h is constant
                 if strcmp(obj.kernel,'gauss')
-                    update_kernel_gauss_hconst(obj);
+                    comp_kernel_gauss_hconst(obj);
                 elseif strcmp(obj.kernel,'M4')
-                    update_kernel_M4_hconst(obj);  
+                    comp_kernel_M4_hconst(obj);  
                 else
                     error([obj.kernel,' as kernel is not implemented yet']);
                 end
@@ -470,91 +484,91 @@ classdef sph_particles < handle
             else
                 if strcmp(obj.kernel,'gauss')
                     error('todo');
-                    update_kernel_gauss(obj);
+                   % comp_kernel_gauss(obj);
                 elseif strcmp(obj.kernel,'M4')
-                    update_kernel_M4(obj);   
+                    comp_kernel_M4(obj);   
                 else
                     error([obj.kernel,' as kernel is not implemented yet']);
                 end
             end
         end
+        %%
+        function comp_kernel(obj)
+            if ~obj.distances_uptodate
+                comp_distances(obj);
+            end
+             if obj.h_const && strcmp(obj.kernel,'Gauss')% if h is constant
+                comp_kernel_gauss_hconst(obj);
+                obj.Wij_hi = obj.Wij;
+                obj.Wij_hj = obj.Wij;
+                obj.dWij_hi = obj.dWij;
+                obj.dWij_hj = obj.dWij;
+            else
+                if strcmp(obj.kernel,'Gauss')
+                    sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
+                    fw  = @(r) exp(-r.^2);
+                    fdw = @(r)  -2*r.*exp(-r.^2);
+                elseif strcmp(obj.kernel,'M4')
+                    sigma = [2/3; 10/(7*pi); 1/pi];
+                    fw = @(r) ...
+                        1/4*(2-r).^3   ...
+                         - (1-r).^3 .* (r<1);            
+                    fdw = @(r) ... 
+                         -3/4*(2-r).^2  ...
+                        + 3*(1-r).^2 .* (r<1);  
+                elseif strcmp(obj.kernel,'Wendland')
+                    sigma = [3/4; 7/(4*pi); 21/(16*pi)];
+                    fw = @(r)  ...
+                       (1-r/2).^4 .* (1+2*r);
+                    fdw =@(r)... 
+                      -5*r.*(1-r/2).^3;    
+                else
+                    error([obj.kernel,' as kernel is not implemented yet']);
+                end
+                
+                r = [(obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ii);
+                     (obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ij)];
+ 
+                Np = sum(obj.active_k_pij);
+                I = r < 2;
+                w = zeros(2*Np,1);            
+                w(I) = sigma(obj.dim)*fw(r(I));
+
+                obj.Wij_hi = w(1:Np)./ (obj.hj(obj.Ii).^obj.dim);
+                obj.Wij_hj = w(Np+1:end)./ (obj.hj(obj.Ij).^obj.dim);
+                obj.Wij    = 0.5*(obj.Wij_hi + obj.Wij_hj);
+
+                dw = zeros(2*Np,1);
+                dw(I,:)   = sigma(obj.dim)*fdw(r(I,:));
+
+                obj.dWij_hi = 1./obj.hj(obj.Ii).^(obj.dim+1) .* dw(1:Np);
+                obj.dWij_hj = 1./obj.hj(obj.Ij).^(obj.dim+1) .* dw(Np+1:end);
+                obj.dWij    = 0.5*(obj.dWij_hi+obj.dWij_hj);
+                
+                if obj.beta ~= 0 % necessary only for surface tension
+                    error('ddW not implented for not constant h yet');
+%                 obj.dWij_over_rij = obj.dWij ./ obj.rij(obj.active_k_pij); 
+% 
+%                 obj.ddWij = 1/obj.hj^2 * sigma(obj.dim) .* ...
+%                     (r<2)  .*(...
+%                     +6/4*(2-r)  ...
+%                     - 6*(1-r) .* (r<1)...
+%                     ); 
+                end   
+             end
+        end
+        
+        
         %% Gauss kernel
-        function update_kernel_gauss_hconst(obj)
+        function comp_kernel_gauss_hconst(obj)
             sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
             obj.Wij   = 1/(obj.hj(1)^obj.dim)* sigma(obj.dim) *...
                         exp(-(obj.rij(obj.active_k_pij)/obj.hj(1)).^2);
             obj.dWij  = obj.Wij.* -2.*obj.rij(obj.active_k_pij)/obj.hj(1)^2;
             obj.dWij_over_rij = obj.Wij.* -2./obj.hj(1)^2;
             obj.ddWij = -2/obj.hj(1)^2*(obj.dWij.* obj.rij(obj.active_k_pij) + obj.Wij );
-        end
-        %% M4 spline kernel
-        function update_kernel_M4(obj)
-            sigma = [2/3; 10/(7*pi); 1/pi];
-            %normalisation constant
-            r = (obj.rij(obj.active_k_pij)*ones(1,2)) ./ [obj.hj(obj.Ii),obj.hj(obj.Ij)];
-%              r = linspace(0,2,100);
-            w   = sigma(obj.dim)* ...
-                (r<2)  .*(...
-                1/4*(2-r).^3   ...
-                - (1-r).^3 .* (r<1)...
-                );
-            obj.Wij_hi = w(:,1)./ (obj.hj(obj.Ii).^obj.dim);
-            obj.Wij_hj = w(:,2)./ (obj.hj(obj.Ij).^obj.dim);
-            obj.Wij =0.5*(obj.Wij_hi + obj.Wij_hj);
-            
-            dw   = sigma(obj.dim)* ... 
-                (r<2)  .*(...
-                -3/4*(2-r).^2  ...
-                + 3*(1-r).^2 .* (r<1)...
-                );
-            obj.dWij_hi = 1./obj.hj(obj.Ii).^(obj.dim+1) .* dw(:,1);
-            obj.dWij_hj = 1./obj.hj(obj.Ij).^(obj.dim+1) .* dw(:,2);
-            obj.dWij =0.5*(obj.dWij_hi+obj.dWij_hj);
-                                    
-            if obj.beta ~= 0 % necessary only for surface tension
-                error('ddW not implented for not constant h yet');
-                obj.dWij_over_rij = obj.dWij ./ obj.rij(obj.active_k_pij); 
-
-                obj.ddWij = 1/obj.hj^2 * sigma(obj.dim) .* ...
-                    (r<2)  .*(...
-                    +6/4*(2-r)  ...
-                    - 6*(1-r) .* (r<1)...
-                    ); 
-            end
-%            plot(r,obj.Wij,r,obj.dWij);
-%            keyboard
-        end 
-        %%
-        function update_kernel_M4_hconst(obj)
-            %just use an arbitrary (here the first) h
-            sigma = [2/3; 10/(7*pi); 1/pi] ./ (obj.hj(1).^obj.dim); %normalisation constant
-            r = obj.rij(obj.active_k_pij) / obj.hj(1);
-%              r = linspace(0,2,100);
-            obj.Wij   = sigma (obj.dim) .*...
-                (r<2)  .*(...
-                1/4*(2-r).^3   ...
-                - (1-r).^3 .* (r<1)...
-                );
-            
-            obj.dWij   =  1/obj.hj(1) * sigma (obj.dim) .*... 
-                (r<2)  .*(...
-                -3/4*(2-r).^2  ...
-                + 3*(1-r).^2 .* (r<1)...
-                );
-            
-            if obj.beta ~= 0 % necessary only for surface tension
-                obj.dWij_over_rij = obj.dWij ./ obj.rij(obj.active_k_pij); 
-
-                obj.ddWij = 1/obj.hj(1)^2 * sigma (obj.dim) .* ...
-                    (r<2)  .*(...
-                    +6/4*(2-r)  ...
-                    - 6*(1-r) .* (r<1)...
-                    ); 
-            end
-%            plot(r,obj.Wij,r,obj.dWij);
-%            keyboard
-        end        
-        %%
+        end       
+        %%    
         function update_full_step(obj) 
             if ~obj.firststep
                 obj.rhoj(obj.Iall) = obj.rhoj_half(obj.Iall)+ 0.5*obj.dt * obj.drhoj(obj.Iall);
@@ -694,6 +708,7 @@ classdef sph_particles < handle
         end
         %%
         function comp_forces(obj)
+            %internal forces
             if ~obj.distances_uptodate
                 comp_distances(obj);
             end
@@ -704,13 +719,17 @@ classdef sph_particles < handle
             else
                 error('scheme not supported');
             end
+            %artifisial dissipation
             comp_Fdiss_art(obj)
+            %dissipation
             if obj.mu ~=0
                 comp_Fdiss(obj);
             end
+            % surface tension
             if obj.beta ~= 0
                 comp_F_ST(obj);
             end
+            %add up everything
             obj.F_total = obj.F_int + obj.F_diss + obj.F_diss_art + obj.F_ST;
 %             if any(sum(obj.F_total)>1e-10)
 %                 keyboard
@@ -816,10 +835,42 @@ classdef sph_particles < handle
             obj.F_ST  = obj.AedgesXj * qF_ST_ij;         
         end
         %%
+        function comp_BCdamping(obj) %todo
+           xb=obj.omega_nr_bc;
+           kb = logical((obj.Xj>xb(1)) .* (obj.Xj<xb(2))); %particels in boundary layer
+            
+           %hyperbolic
+           sigma0 = 0.02*max(obj.cj)/(xb(2)-xb(1));
+           sigma=sigma0 *(obj.Xj(kb,:) - xb(1)) ./ (xb(2)-obj.Xj(kb,:)+0.5*max(obj.hj));
+%             
+%            m      = 10;
+%            sigma0 = 10;
+%            sigma=sigma0*((obj.Xj(kb,:) - xb(1))./(xb(2)-xb(1))).^m;
+
+            sigmaS=sigma;
+            sigmaQ=sigma;
+
+            %figure
+%            plot(sigma)
+%             keyboard
+           %density:
+           damp = obj.pj(kb,:)<0; %only if v<0
+%            if any(damp)
+%                keyboard
+%            end
+           S = - sigmaS.*(obj.rhoj(kb,:) - obj.rho0j(kb,:));
+           obj.drhoj(kb,:) = obj.drhoj(kb,:) + S.*damp;
+           %forces:
+           Q = - sigmaQ.*(obj.vj(kb,:) - 0);
+           obj.F_total(kb,:) = obj.F_total(kb,:) + Q.*damp;
+%             figure(2)
+%            plot(obj.Xj(kb,:),Q);
+        end
+        %%
         function checkIfInDomain(obj)
             if (any(any(obj.Xj-  ones(obj.N,1)* obj.Omega(:,1)'<0)) || any(any( ones(obj.N,1)*obj.Omega(:,2)' - obj.Xj <0)))
                 error('some points are out of the domain');
             end
-        end              
+        end  
     end
 end

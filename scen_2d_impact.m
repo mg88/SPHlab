@@ -10,11 +10,11 @@ ps.input_name = 'test';
 
 ps.dx       = 4e-3;
 ps.dtfactor = 0.5;
-ps.tend     = 0.05;    
+ps.tend     = 0.02;    
 ps.eta      = 1.2;     
 ps.eta2     = 2;  
-ps.kernel   = 'M4';
-ps.scheme   = 'v';
+ps.kernel   = 'Wendland';
+ps.scheme   = 'm';
 ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
@@ -65,21 +65,24 @@ obj_particles = sph_particles(ps);
 %% start simulation
 start_simulation(obj_particles)
 
-% t=0.000104s (1 iter/sec ,Ncon = 42526)
-% t=0.003952s (38 iter/sec ,Ncon = 42743)
-% t=0.0076962s (37 iter/sec ,Ncon = 43197)
-% t=0.010194s (25 iter/sec ,Ncon = 43691)
-% t=0.013536s (33 iter/sec ,Ncon = 44337)
-% t=0.016803s (32 iter/sec ,Ncon = 45206)
-% t=0.020016s (31 iter/sec ,Ncon = 45814)
-% t=0.021754s (17 iter/sec ,Ncon = 45909)
-% t=0.024511s (26 iter/sec ,Ncon = 45945)
-% t=0.027194s (25 iter/sec ,Ncon = 45945)
-% t=0.030013s (26 iter/sec ,Ncon = 45945)
-% t=0.031594s (15 iter/sec ,Ncon = 45945)
-% t=0.034295s (25 iter/sec ,Ncon = 45945)
-% t=0.036874s (24 iter/sec ,Ncon = 45945)
-% t=0.039565s (25 iter/sec ,Ncon = 45945)
 
-%Elapsed time is 20.941137 seconds.
-
+% t=9.6e-05s (1 iter/sec ,Ncon = 45374)
+% t=0.00288s (30 iter/sec ,Ncon = 45452)
+% t=0.0056077s (30 iter/sec ,Ncon = 45650)
+% create new cell-structure
+% t=0.0075279s (21 iter/sec ,Ncon = 57161)
+% t=0.0098751s (28 iter/sec ,Ncon = 57645)
+% create new cell-structure
+% t=0.010409s (8 iter/sec ,Ncon = 64953)
+% create new cell-structure
+% t=0.011153s (11 iter/sec ,Ncon = 80482)
+% create new cell-structure
+% t=0.012303s (15 iter/sec ,Ncon = 95553)
+% t=0.013888s (19 iter/sec ,Ncon = 95783)
+% create new cell-structure
+% t=0.014075s (3 iter/sec ,Ncon = 116175)
+% t=0.015324s (19 iter/sec ,Ncon = 116428)
+% t=0.016557s (19 iter/sec ,Ncon = 116789)
+% t=0.017778s (19 iter/sec ,Ncon = 116827)
+% t=0.019037s (19 iter/sec ,Ncon = 117102)
+% Elapsed time is 24.061831 seconds.

@@ -10,7 +10,7 @@ classdef sph_scenario < handle
         tend        % Simulation time
         eta         % h=eta*dx
         eta2        % eta2*h is the cutoff radius 
-        kernel      % M4 | gauss
+        kernel      % M4 | Gauss | Wendland
         scheme      % m | v
         h_const     % is h constant (true) or dependent on density (false) 
         %% geometry
@@ -26,7 +26,9 @@ classdef sph_scenario < handle
         Iboun
         Iin  
         Imaterial  % [1st indice of n-st material, last indice of n-st material]^n
-       
+        %bc
+        omega_nr_bc % [lower-left point, upper-right point]^n
+        
         %% material parameter
         rho0j      % density
         rhoj
@@ -63,6 +65,7 @@ classdef sph_scenario < handle
            obj.Iboun = [];
            obj.Iin   = [];
            obj.Imaterial = [];
+           obj.omega_nr_bc = [];
            obj.g_ext = [0,0];
            obj.save_as_movie = false;
            obj.movie_name = 'out';
@@ -72,7 +75,7 @@ classdef sph_scenario < handle
            obj.write_data = false; 
            obj.output_name ='data_out.h5';
            
-           obj.kernel = 'M4'; %standard kernel
+           obj.kernel = 'Wendland'; %standard kernel
            obj.scheme = 'm';
            obj.dtfactor  = 0.5;
            obj.beta = 0;

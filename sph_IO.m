@@ -18,9 +18,12 @@ classdef sph_IO < handle
         save_as_movie
         movie_name
         vidObj
+       
+        %conservation variables
+        con_dt
+        con_mass
+        con_momentum
         
-        %
-        obj_particles
     end
     
     methods
@@ -44,6 +47,11 @@ classdef sph_IO < handle
               if obj.write_data %create file
                   hdf5write(obj.output_name, '/name', 0); % ToDo: better solution?
               end   
+              
+              %conservation variables              
+              obj.con_mass = [];
+              obj.con_momentum =[];
+              obj.con_dt = [];
         end
         
         %%
@@ -63,23 +71,23 @@ classdef sph_IO < handle
             
         end
         %%
-        function do (obj,t, obj_particles)
-            %% write output
-            obj.obj_particles= obj_particles;
-            %%
+        function do (obj, obj_particles)
             %% plotting
-            if (mod(t,obj.plot_dt) < obj_particles.dt) %ToDo: good for variable timestepping?
-                plot_data (obj,t);
+            if (mod(obj_particles.t,obj.plot_dt) < obj_particles.dt) %ToDo: good for variable timestepping?
+                plot_data (obj,obj_particles);
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
                     writeVideo(obj.vidObj,currFrame);
                 end
-                
+               
                 %write output
                 if obj.write_data
-                     write_hdf5(obj,t,obj_particles)
+                     write_hdf5(obj,obj_particles)
                 end
-            end   
+            end  
+            %check for conservation of mass and momentum
+            checkConservation (obj,obj_particles);
+ 
 
         end       
         %%
@@ -90,29 +98,88 @@ classdef sph_IO < handle
             if obj.save_as_movie
               close(obj.vidObj);
               disp (['movie saved as ',obj.movie_name]);
-            end           
+            end   
+            plot_conservation = false;
+            mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
+            if plot_conservation
+                %% plot conservation variables
+                figure
+                subplot(2,1,1)
+                plot(obj.con_dt,obj.con_mass)
+                title('evolution of mass');
+                xlabel('t'); ylabel('mass')
+                subplot(2,1,2)            
+                % norm(momentum)
+                plot(obj.con_dt,mom_norm);            
+                hold on;
+                %components (in 2d)
+                dim=size(obj.con_momentum,2);            
+                if dim > 1
+                    for i = 1: dim
+                        plot(obj.con_dt,obj.con_momentum(:,i)) %x
+                    end
+                    legend('norm','x','y');
+                end
+                title('evolution of momentum');
+                xlabel('t'); ylabel('momentum ')
+                hold off;
+            end
+            disp (['## relative dissipation of momentum = ',...
+                num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
+        end
+        %%
+        function checkConservation (obj,obj_particles)
+            data=obj_particles;
+            %time
+            obj.con_dt = [obj.con_dt;
+                          data.t];
+            
+            % conservation of mass
+            massj = data.rhoj.*data.Vj;
+            obj.con_mass = [obj.con_mass;...
+                            sum(massj)];
+            % conservation of momentum
+            mom  = massj*ones(1,data.dim) .* data.vj;
+            obj.con_momentum = [obj.con_momentum;...
+                                sum(mom,1)];
         end
         
         %% %%%  Plotting functions %%% %%
-        function plot_data(obj,t)
+        function plot_data(obj,obj_particles)
            figure(obj.mfigure);
-           if obj.obj_particles.dim == 1               
-               plot_data1D(obj,t);
-           elseif obj.obj_particles.dim == 2
+           if obj_particles.dim == 1               
+               plot_data1D(obj,obj_particles);
+           elseif obj_particles.dim == 2
                if strcmp(obj.plotstyle,'scatter')
-                    plot_scatter2D(obj,t);
+                    plot_scatter2D(obj,obj_particles);
                elseif strcmp (obj.plotstyle,'trisurf')
-                    plot_trisurf(obj,t)
+                    plot_trisurf(obj,obj_particles)
                elseif strcmp (obj.plotstyle,'patches')
-                    plot_patches(obj,t)
+                    plot_patches(obj,obj_particles)
                else
                    error([obj.plotstyle, '- plotstyle is not supported']);
                end
            end 
         end          
         %%
-        function plot_data1D(obj,time)
-            data = obj.obj_particles;
+        function plot_data1D(obj,obj_particles)
+            
+            function iplot = create_a_supplot_1d(data,y,title_name,time,nplot,iplot)
+                   subplot(nplot,1,iplot)
+                   colo='gbkrm';
+                   for mat = 1:size(data.Imaterial,1)
+                        I = data.Imaterial(mat,1):data.Imaterial(mat,2);
+                        plot(data.Xj(I),y(I),'o','color',colo(mod(mat,4)+1),'MarkerFaceColor','auto'); 
+                        hold on;
+                   end
+                   hold off;
+                   title([title_name,', t=',num2str(time),' N= ',num2str(data.N)])
+                   xlim([data.Omega(1) data.Omega(2)]);
+                   iplot = iplot+1;            
+             end 
+            
+            data = obj_particles;
+            time = data.t;
             nplot = length(obj.plotstyle);
             iplot = 1;
             if ~isempty(strfind(obj.plotstyle,'x'));
@@ -123,13 +190,13 @@ classdef sph_IO < handle
                 iplot=iplot+1;     
             end
             if ~isempty(strfind(obj.plotstyle,'v'));
-                iplot = create_a_supplot_1d(obj,data.vj,'velocity',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.vj,'velocity',time,nplot,iplot);
             end
             if ~isempty(strfind(obj.plotstyle,'p'));
-                iplot = create_a_supplot_1d(obj,data.pj,'pressure',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.pj,'pressure',time,nplot,iplot);
             end
             if ~isempty(strfind(obj.plotstyle,'d'));
-                iplot = create_a_supplot_1d(obj,data.rhoj,'density',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.rhoj,'density',time,nplot,iplot);
             end
             if ~isempty(strfind(obj.plotstyle,'f'));     
                 subplot(nplot,1,iplot)
@@ -140,23 +207,11 @@ classdef sph_IO < handle
             drawnow
         end
         %%
-        function iplot = create_a_supplot_1d(obj,y,title_name,time,nplot,iplot)
-           data = obj.obj_particles;
-           subplot(nplot,1,iplot)
-           colo='gbkrm';
-           for mat = 1:size(data.Imaterial,1)
-                I = data.Imaterial(mat,1):data.Imaterial(mat,2);
-                plot(data.Xj(I),y(I),'o','color',colo(mod(mat,4)+1),'MarkerFaceColor','auto'); 
-                hold on;
-           end
-           hold off;
-           title([title_name,', t=',num2str(time),' N= ',num2str(data.N)])
-           xlim([data.Omega(1) data.Omega(2)]);
-           iplot = iplot+1;            
-        end            
+           
         %%
-        function plot_scatter2D(obj,t)
-           data = obj.obj_particles;
+        function plot_scatter2D(~,obj_particles)
+           data = obj_particles;
+           t = obj_particles.t;
            %% some flags:
            draw_connectivity = false;
            draw_cells = false;
@@ -235,16 +290,17 @@ classdef sph_IO < handle
            drawnow
         end
         %%
-        function plot_trisurf(obj,time)  
-            data = obj.obj_particles;
-            x=data.Xj(:,1);
-            y=data.Xj(:,2);
-            xy = complex(x,y);
-            t=delaunay(x,y);
-            z=data.pj;
-            e = abs(xy(t) - xy(circshift(t,-1,2)));
-            goodt = all(e < 2*data.h,2); %dxmedian(e(:)),2);
-            t2 = t(goodt,:);
+        function plot_trisurf(~,obj_particles)  
+            data = obj_particles;
+            time = data.t;
+            x    = data.Xj(:,1);
+            y    = data.Xj(:,2);
+            xy   = complex(x,y);
+            t    = delaunay(x,y);
+            z    = data.pj;
+            e    = abs(xy(t) - xy(circshift(t,-1,2)));
+            goodt = all(e < 2*max(data.h),2); %dxmedian(e(:)),2);
+            t2   = t(goodt,:);
             trisurf(t2,x,y,z)
             %trimesh(t2,x,y,z)
 
@@ -265,15 +321,30 @@ classdef sph_IO < handle
             drawnow;
         end
         %%
-        function plot_patches(obj,time)
-            data = obj.obj_particles;
+        function plot_patches(~,obj_particles)
+            
+            function transparentScatter(x,y,z,sizeOfCirlce,opacity)
+                t= 0:pi/10:2*pi;
+                rep_x = repmat(x',[size(t,2),1]);
+                rep_y = repmat(y',[size(t,2),1]);
+                rep_r = repmat(sizeOfCirlce',[size(t,2),1]);
+                rep_z = repmat(z',[size(t,2),1]);
+                rep_t = repmat(t',[ 1, size(x,1)]);
+
+                scatterPoints = patch((rep_r.*sin(rep_t)+ rep_x),...
+                                      (rep_r.*cos(rep_t)+rep_y),...
+                                       rep_z,'edgecolor','none');
+                alpha(scatterPoints,opacity);
+             end
+            data = obj_particles;
+            time = data.t;
             x=data.Xj(:,1);
             y=data.Xj(:,2);
             a=data.hj;
             z=data.pj;
             opacity = 0.3;
             clf
-            transparentScatter(obj,x,y,z,a,opacity);
+            transparentScatter(x,y,z,a,opacity);
             caxis([-1 1])
             colorbar 
             colormap jet
@@ -289,24 +360,9 @@ classdef sph_IO < handle
             drawnow;
         end
         %%
-        function transparentScatter(~, x,y,z,sizeOfCirlce,opacity)
-                t= 0:pi/10:2*pi;
-                rep_x = repmat(x',[size(t,2),1]);
-                rep_y = repmat(y',[size(t,2),1]);
-                rep_r = repmat(sizeOfCirlce',[size(t,2),1]);
-                rep_z = repmat(z',[size(t,2),1]);
-                rep_t = repmat(t',[ 1, size(x,1)]);
-
-                scatterPoints = patch((rep_r.*sin(rep_t)+ rep_x),...
-                                      (rep_r.*cos(rep_t)+rep_y),...
-                                       rep_z,'edgecolor','none');
-                alpha(scatterPoints,opacity);
-
-        end
-        %%
 
         %% %%% In/out %%% %%
-        
+        %%
         function read_hdf5(~,obj_scen)
   
             function x=readVariable(x_name,filename,time)
@@ -352,9 +408,10 @@ classdef sph_IO < handle
           %  tauYY = readVariable('tauYY',filename,time_str);
 
         end
-        
-        function write_hdf5(obj,time,obj_particle)
+        %%
+        function write_hdf5(obj,obj_particle)
             filename = obj.output_name;
+            time = obj_particles.t;
             function writeVariable(filename,time,name,data)
                 group = ['/',num2str(time),'/',name];
                 hdf5write(filename, group, data, 'WriteMode', 'append');
