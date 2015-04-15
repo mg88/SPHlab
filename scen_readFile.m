@@ -35,6 +35,7 @@ ps.Omega = [ -0.1, 0.4;
 ps.plot_dt = 1e-6;  
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
+ps.fixaxes.p = [-1,1];
 
 %% create particle class
 obj_particles = sph_particles(ps);

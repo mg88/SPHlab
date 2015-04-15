@@ -13,6 +13,7 @@ ps.eta2    = 2;
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
+ps.fixaxes.p = [-1,1];
 
  %% material parameter
 rho0 = 1;   
@@ -25,23 +26,23 @@ Vp = ps.dx*ps.dx; %volume per particle
   
 %% active particles
 l  = 0.2;
-r  = 0.7;
+r  = 0.5;
 h1 = 0.1;
 h2 = 0.4;
 interface=0.35;
 %left
 lowerleftcorner1 = [l,h1];
 upperrightcorner1= [ interface,h2];
-v0    = [3,0];
+v0    = [0.1,0];
 I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0, c0)
              
 % right
-lowerleftcorner1 = [interface+ps.dx,h1];
+lowerleftcorner1 = [max(ps.Xj(:,1))+ps.dx,h1];
 upperrightcorner1= [ r,h2];
 v0    = [0,0];
 I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0, c0)
 %% boundary
 %top
 % startpoint = [0,h1-ps.dx];
@@ -58,6 +59,12 @@ addproperties(ps, I, Vp, rho0, v0,c0, false)
 % layer = 1;
 % I = add_line2d(ps,startpoint,endpoint,layer);   
 %addproperties(ps, I, Vp, rho0, v0,c0, false)
+
+%% set BC
+y  = max(ps.Xj(ps.Iin,1));
+kb = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;
+             
+ps.mirrorParticlesj = kb;
 
 %% -----------------------------------------------------
 

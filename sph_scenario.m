@@ -27,7 +27,8 @@ classdef sph_scenario < handle
         Iin  
         Imaterial  % [1st indice of n-st material, last indice of n-st material]^n
         %bc
-        omega_nr_bc % [lower-left point, upper-right point]^n
+        damping_area % [lower-left point, upper-right point]^n
+        mirrorParticlesj
         
         %% material parameter
         rho0j      % density
@@ -52,6 +53,7 @@ classdef sph_scenario < handle
         plot_dt         % plotting timestep
         plotstyle       % 1D: x-position, v-velocity, p-pressure, d-density, f-forces
                         % 2D: scatter | trisurf | patches  
+        fixaxes         %struct to define the axes           
         %movie settings                        
         save_as_movie
         movie_name
@@ -62,34 +64,33 @@ classdef sph_scenario < handle
     methods
         % Constructor
         function obj = sph_scenario()
-           obj.Iboun = [];
-           obj.Iin   = [];
-           obj.Imaterial = [];
-           obj.omega_nr_bc = [];
-           obj.g_ext = [0,0];
-           obj.save_as_movie = false;
-           obj.movie_name = 'out';
-           obj.plotstyle = 'scatter';
-           obj.read_data = false;
-           
-           obj.write_data = false; 
-           obj.output_name ='data_out.h5';
-           
-           obj.kernel = 'Wendland'; %standard kernel
+           % some standard parameter 
+           obj.kernel = 'Wendland'; 
            obj.scheme = 'm';
+           obj.h_const = false;           
            obj.dtfactor  = 0.5;
            obj.beta = 0;
            obj.mu   = 0;
            obj.geo_noise = 0;
-           obj.h_const = false;
-           obj.iter  = 1;
+           obj.g_ext = [0,0]; % not in use yet
+           
+           %IO
+           obj.save_as_movie = false;
+           obj.movie_name = 'out';
+           obj.plotstyle = 'scatter';
+           obj.read_data = false;           
+           obj.write_data = false; 
+           obj.output_name ='data_out.h5';
+           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[]);
+           %some initialization
+           obj.Iboun = [];
+           obj.Iin   = [];
+           obj.Imaterial = [];
+           obj.damping_area = [];
+           obj.mirrorParticlesj = [];
+           obj.iter  = 1;          
         end       
         
-        function checkIfAlreadySet(obj)
-            if ~isempty(obj.Iin)
-                error('A scenario is already set!');
-            end
-        end
         
         function name = get_movie_name(obj)
             movie_dir='movies/'; %ToDo: anders machen
@@ -101,7 +102,7 @@ classdef sph_scenario < handle
            disp(obj)             
         end
         
-        function addproperties(obj, I, Vp, rho0, v0,c0,boun) %constant mass/Volume
+        function addproperties(obj, I, Vp, rho0, v0,c0) %constant mass/Volume
             m0 = Vp * rho0;            
             obj.vj(I,:)    = ones(size(I,1),1)*v0;     
             obj.c0j(I,1)   = c0;
@@ -111,11 +112,8 @@ classdef sph_scenario < handle
             obj.mj(I,1)    = m0;
             obj.Imaterial = [obj.Imaterial;...
                              [I(1) I(end)] ];
-            if boun
-                obj.Iboun = [obj.Iboun; I];
-            else
-                obj.Iin   = [obj.Iin; I];
-            end 
+            obj.Iin   = [obj.Iin; I];
+
         end
 
         

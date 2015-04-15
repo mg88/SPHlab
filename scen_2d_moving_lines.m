@@ -13,6 +13,7 @@ ps.scheme  = 'v';
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
+ps.fixaxes.p = [-1,1];
 
 
 %% material parameter
@@ -30,14 +31,14 @@ endpoint   = [0.55,0.49];
 v0   = [0,-1];
 layer = 4;
 I = add_line2d(ps,startpoint,endpoint,layer);   
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %line 2
 startpoint = [0.42,0.41];
 endpoint   = [0.8,0.41];
 v0   = [0,0];
 I = add_line2d(ps,startpoint,endpoint,layer);
-addproperties(ps, I, Vp, rho0, v0,c0, true)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %% -----------------------------------------------------
 

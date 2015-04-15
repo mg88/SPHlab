@@ -14,6 +14,8 @@ classdef sph_IO < handle
         plotstyle
         plot_dt
         
+        fixaxes
+        
         %movie
         save_as_movie
         movie_name
@@ -23,12 +25,13 @@ classdef sph_IO < handle
         con_dt
         con_mass
         con_momentum
+        con_energy
         
     end
     
     methods
         
-%         %% constructor
+        %% %%% constructor
         function obj = sph_IO(obj_scen)
               % some IO properties
               obj.save_as_movie = obj_scen.save_as_movie;
@@ -52,17 +55,21 @@ classdef sph_IO < handle
               obj.con_mass = [];
               obj.con_momentum =[];
               obj.con_dt = [];
+              obj.con_energy =[];
+              obj.fixaxes = obj_scen.fixaxes;
         end
         
-        %%
+        %% %%% general functions
         function initialize(obj)
             %% output
 
             %% plot
-            
+            if ~strcmp(obj.plotstyle,'')  %plot only, if plotstlye is specified
+                  obj.mfigure = figure;
+            end
+
             
             %% movie
-            obj.mfigure = figure;
             if obj.save_as_movie
                 set(gca,'DataAspectRatio',[1,1,1]);
                 obj.vidObj     = VideoWriter(obj.movie_name);
@@ -99,16 +106,16 @@ classdef sph_IO < handle
               close(obj.vidObj);
               disp (['movie saved as ',obj.movie_name]);
             end   
-            plot_conservation = false;
+            plot_conservation = true;
             mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
             if plot_conservation
                 %% plot conservation variables
-                figure
-                subplot(2,1,1)
+                fig=figure;
+                subplot(3,1,1)
                 plot(obj.con_dt,obj.con_mass)
                 title('evolution of mass');
                 xlabel('t'); ylabel('mass')
-                subplot(2,1,2)            
+                subplot(3,1,2)            
                 % norm(momentum)
                 plot(obj.con_dt,mom_norm);            
                 hold on;
@@ -123,6 +130,12 @@ classdef sph_IO < handle
                 title('evolution of momentum');
                 xlabel('t'); ylabel('momentum ')
                 hold off;
+                subplot(3,1,3)
+                plot(obj.con_dt,obj.con_energy)
+                %move figure to the left side
+                figpos=fig.Position;
+                figpos(1)=0;
+                fig.Position =figpos;
             end
             disp (['## relative dissipation of momentum = ',...
                 num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
@@ -139,64 +152,95 @@ classdef sph_IO < handle
             obj.con_mass = [obj.con_mass;...
                             sum(massj)];
             % conservation of momentum
-            mom  = massj*ones(1,data.dim) .* data.vj;
+            momj  = massj*ones(1,data.dim) .* data.vj;
             obj.con_momentum = [obj.con_momentum;...
-                                sum(mom,1)];
+                                sum(momj,1)];
+                            
+            % energy after Modave 1/2mv^2 + pV
+%             ej = 0.5 * massj .* sum(data.vj.^2,2) + data.Vj.*data.pj.^2;
+%             obj.con_energy =[obj.con_energy;
+%                              sum(ej)];
+            % change of energy
+            ej = data.vj(data.Iin)'*data.F_total(data.Iin) + ...
+                 sum(data.pj(data.Iin)./data.rhoj(data.Iin).^2 ...
+               .* data.drhoj(data.Iin) .*data.mj(data.Iin));
+            obj.con_energy =[obj.con_energy;
+                              sum(ej)];
         end
+
         
         %% %%%  Plotting functions %%% %%
         function plot_data(obj,obj_particles)
-           figure(obj.mfigure);
-           if obj_particles.dim == 1               
-               plot_data1D(obj,obj_particles);
-           elseif obj_particles.dim == 2
-               if strcmp(obj.plotstyle,'scatter')
-                    plot_scatter2D(obj,obj_particles);
-               elseif strcmp (obj.plotstyle,'trisurf')
-                    plot_trisurf(obj,obj_particles)
-               elseif strcmp (obj.plotstyle,'patches')
-                    plot_patches(obj,obj_particles)
-               else
-                   error([obj.plotstyle, '- plotstyle is not supported']);
-               end
-           end 
+           if ~strcmp(obj.plotstyle,'')  %plot only, if plotstlye is specified
+               figure(obj.mfigure);
+               if obj_particles.dim == 1               
+                   plot_data1D(obj,obj_particles);
+               elseif obj_particles.dim == 2
+                   if strcmp(obj.plotstyle,'scatter')
+                        plot_scatter2D(obj,obj_particles);
+                   elseif strcmp (obj.plotstyle,'trisurf')
+                        plot_trisurf(obj,obj_particles)
+                   elseif strcmp (obj.plotstyle,'patches')
+                        plot_patches(obj,obj_particles)
+                   else
+                       error([obj.plotstyle, '- plotstyle is not supported']);
+                   end
+               end 
+           end
         end          
         %%
         function plot_data1D(obj,obj_particles)
-            
-            function iplot = create_a_supplot_1d(data,y,title_name,time,nplot,iplot)
+            %
+            function draw_nr_bc_area(data,y)
+                %%-- draw non-reflecting boundary condition
+               if ~isempty(data.damping_area)
+                   a = axis;
+                   b = data.omega_nr_bc;
+                   rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
+                             'EdgeColor',[0,1,0.5]);
+                   axis(a)
+                   kb = logical((data.Xj>b(1)) .* (data.Xj<b(2))); %particels in boundary layer
+                   % mark particles
+                   plot(data.Xj(kb),y(kb),'xr');
+               end
+               %%--                               
+            end
+            %
+            function iplot = create_a_supplot_1d(data,y,title_name,nplot,iplot,yaxes)
                    subplot(nplot,1,iplot)
                    colo='gbkrm';
-                   for mat = 1:size(data.Imaterial,1)
-                        I = data.Imaterial(mat,1):data.Imaterial(mat,2);
+                   time = data.t;
+                   %each material gets his own color
+                   for mat = 1:size(data.Imaterial_with_boun,1)
+                        I = data.Imaterial_with_boun(mat,1):data.Imaterial_with_boun(mat,2);
                         plot(data.Xj(I),y(I),'o','color',colo(mod(mat,4)+1),'MarkerFaceColor','auto'); 
                         hold on;
+                   end                     
+                   xlim([data.Omega(1) data.Omega(2)]);
+                   if ~isempty(yaxes)
+                        ylim(yaxes);
                    end
+                   draw_nr_bc_area(data,y) %draw non-reflecting boundary condition
                    hold off;
                    title([title_name,', t=',num2str(time),' N= ',num2str(data.N)])
-                   xlim([data.Omega(1) data.Omega(2)]);
-                   iplot = iplot+1;            
-             end 
+                   iplot = iplot+1;                               
+            end 
             
-            data = obj_particles;
-            time = data.t;
+            data  = obj_particles;
             nplot = length(obj.plotstyle);
             iplot = 1;
             if ~isempty(strfind(obj.plotstyle,'x'));
-                subplot(nplot,1,iplot)
-                plot(data.Xj(data.Iin),0,'bo',data.Xj(data.Iboun),zeros(size(data.Iboun,1),1),'ko');
-                title(['position, t=',num2str(time),' N= ',num2str(data.N)])
-                xlim([data.Omega(1) data.Omega(2)]);
+                create_a_supplot_1d(data,zeros(data.N,1),'position',nplot,iplot,obj.fixaxes.x);
                 iplot=iplot+1;     
             end
             if ~isempty(strfind(obj.plotstyle,'v'));
-                iplot = create_a_supplot_1d(data,data.vj,'velocity',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.vj,'velocity',nplot,iplot,obj.fixaxes.v);
             end
             if ~isempty(strfind(obj.plotstyle,'p'));
-                iplot = create_a_supplot_1d(data,data.pj,'pressure',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.pj,'pressure',nplot,iplot,obj.fixaxes.p);
             end
             if ~isempty(strfind(obj.plotstyle,'d'));
-                iplot = create_a_supplot_1d(data,data.rhoj,'density',time,nplot,iplot);
+                iplot = create_a_supplot_1d(data,data.rhoj,'density',nplot,iplot,obj.fixaxes.d);
             end
             if ~isempty(strfind(obj.plotstyle,'f'));     
                 subplot(nplot,1,iplot)
@@ -206,8 +250,6 @@ classdef sph_IO < handle
             end
             drawnow
         end
-        %%
-           
         %%
         function plot_scatter2D(~,obj_particles)
            data = obj_particles;
@@ -220,8 +262,8 @@ classdef sph_IO < handle
            %% draw points
            colo='gbkrm';
            % each index-set(material) with a seperate color
-           for mat = 1:size(data.Imaterial,1)
-                I = data.Imaterial(mat,1):data.Imaterial(mat,2);
+           for mat = 1:size(data.Imaterial_with_boun,1)
+                I = data.Imaterial_with_boun(mat,1):data.Imaterial_with_boun(mat,2);
                 plot(data.Xj(I,1),data.Xj(I,2),'o','color',colo(mod(mat,4)+1))  %all particles
                 hold on;
            end
@@ -321,7 +363,7 @@ classdef sph_IO < handle
             drawnow;
         end
         %%
-        function plot_patches(~,obj_particles)
+        function plot_patches(obj,obj_particles)
             
             function transparentScatter(x,y,z,sizeOfCirlce,opacity)
                 t= 0:pi/10:2*pi;
@@ -341,11 +383,13 @@ classdef sph_IO < handle
             x=data.Xj(:,1);
             y=data.Xj(:,2);
             a=data.hj;
-            z=data.pj;
+            z=data.pj;  %visualize the pressure
             opacity = 0.3;
             clf
             transparentScatter(x,y,z,a,opacity);
-            caxis([-1 1])
+            if ~isempty(obj.fixaxes.p)
+                caxis(obj.fixaxes.p)
+            end
             colorbar 
             colormap jet
             
@@ -359,7 +403,7 @@ classdef sph_IO < handle
                    
             drawnow;
         end
-        %%
+        
 
         %% %%% In/out %%% %%
         %%

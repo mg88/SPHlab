@@ -38,7 +38,7 @@ v0   = 1;
 rho0 = 1;     % density
 c0   = 1; %ma=1 (Ma=vimp/c0)
 I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %2
 leftpoint = 0.6;
@@ -47,7 +47,7 @@ v0   = 0;
 rho0 = 1;     % density
 c0   = 1;  %ma=1
 I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %3
 leftpoint = 0.8;
@@ -56,7 +56,7 @@ v0   = 0;
 rho0 = 0.25;     % density
 c0   = 0.5;  %ma=2
 I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 
 %4
@@ -66,7 +66,7 @@ v0   = 0;
 rho0 = 1;     % density
 c0   = 1;  %ma=1
 I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %% -----------------------------------------------------
 

@@ -28,7 +28,7 @@ leftpoint = 0.08;
 rightpoint= 0.88;
 v0   = -1;
 I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %% boundary:
 bounleft1  = 0;
@@ -38,6 +38,7 @@ bounright2 = 1;
 v0=0;
 I = add_line1d(ps,[bounleft1;bounleft2]...
                  ,[bounright1;bounright2]);
+error('boundary implementation is now different');
 addproperties(ps, I, Vp, rho0, v0,c0, true)
 
 %% -----------------------------------------------------

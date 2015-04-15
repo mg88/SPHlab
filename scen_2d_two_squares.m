@@ -30,7 +30,7 @@ upperrightcorner2= [ 0.45,0.45];
 v0 = [0,0];
 I = add_rectangle2d(ps,[lowerleftcorner1;lowerleftcorner2],...
                  [upperrightcorner1;upperrightcorner2]);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 %% -----------------------------------------------------
 

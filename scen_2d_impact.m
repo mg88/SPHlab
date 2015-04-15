@@ -10,16 +10,17 @@ ps.input_name = 'test';
 
 ps.dx       = 4e-3;
 ps.dtfactor = 0.5;
-ps.tend     = 0.02;    
+ps.tend     = 0.1;    
 ps.eta      = 1.2;     
 ps.eta2     = 2;  
 ps.kernel   = 'Wendland';
-ps.scheme   = 'm';
+ps.scheme   = 'v';
 ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
+ps.fixaxes.p = [-1,1];
 
 %% material parameter
 rho0 = 1;   
@@ -36,14 +37,14 @@ upperrightcorner1= [0.05, 0.25];
 v0 = [0,0];
 
 I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 
 %   % layer 2
 % lowerleftcorner1 = [0.2,  -0.25];
 % upperrightcorner1= [0.25, 0.25];
 % I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-% addproperties(ps, I, Vp, rho0, v0,c0, false)
+% addproperties(ps, I, Vp, rho0, v0,c0)
 
 %projectile
 lowerleftcorner1 = [-0.1 , -0.01] ;
@@ -52,7 +53,7 @@ c0 = 20;
 v0 = [5,0];
 
 I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0, false)
+addproperties(ps, I, Vp, rho0, v0,c0)
 
 
 %% -----------------------------------------------------
@@ -86,3 +87,11 @@ start_simulation(obj_particles)
 % t=0.017778s (19 iter/sec ,Ncon = 116827)
 % t=0.019037s (19 iter/sec ,Ncon = 117102)
 % Elapsed time is 24.061831 seconds.
+
+%rel dissipation:
+%hconst,v: 0.014
+%hconst,m: 0.02
+%hvariable,v, F(dWij): 0.0081
+%hvariable,m, F(dWij): 0.00088
+%hvariable,v, F(dWij_hi,dWij_hj): 0.001
+%hvariable,m, F(dWij_hi,dW_hj): 0.01
