@@ -47,6 +47,7 @@ classdef sph_particles < handle
         mj
         %some indicies
         Iin
+        Ighost
         Imaterial
         Imaterial_with_boun
         %Material property 
@@ -129,6 +130,7 @@ classdef sph_particles < handle
             obj.eta2_cutoff = obj_scen.eta2;
         
             obj.Iin         = obj_scen.Iin;
+            obj.Ighost      = [];
             obj.Imaterial   = obj_scen.Imaterial;   
             obj.Imaterial_with_boun= obj.Imaterial;
             obj.damping_area = obj_scen.damping_area;     
@@ -189,6 +191,7 @@ classdef sph_particles < handle
                 end
                 icount = icount +1;    
                % keyboard
+             %   obj.checkDataOnline;
             end
             obj.IO.do(obj);  %plot and save last step
             obj.IO.finalize();
@@ -239,11 +242,11 @@ classdef sph_particles < handle
                disp('create new cell-structure');
                initial_search_neighbours(obj);
            else
-               if ~isempty(obj.mirrorParticlesj)
-                   initial_search_neighbours(obj); %% ToDo
-               else
+%                if ~isempty(obj.mirrorParticlesj)
+                  %  initial_search_neighbours(obj); %% ToDo
+%                else
                    update_neighbours(obj);
-               end
+%                end
                
              %  
            end           
@@ -312,49 +315,53 @@ classdef sph_particles < handle
             
             %reset update_neighbours help variables
             obj.obsolete_k_pij = [];
-        end
-        %%
-        function Ashift = lookup_cellshift(obj,jshift)
-           if obj.dim==1
-              switch jshift
-                  case 1
-                      Ashift = 1;
-                  case -1
-                      Ashift = -1;
-                  case inf
-                      Ashift = [-1,0,1];
-                  otherwise
-                        warning('A particel skipped a cell!')
-                        keyboard
-              end
-                     
-           else
-               switch jshift
-                   case 1 %right
-                        Ashift =  1+[obj.Nc(1),0,-obj.Nc(1)];
-                   case -1 %left
-                        Ashift = -1+[obj.Nc(1),0,-obj.Nc(1)];
-                   case obj.Nc(1)%up
-                        Ashift = obj.Nc(1)+[1,0,-1];
-                   case obj.Nc(1)+1 % upper right
-                        Ashift = [-obj.Nc(1)+1,1,1+obj.Nc(1),obj.Nc(1),obj.Nc(1)-1];
-                   case obj.Nc(1)-1 % upper left
-                       Ashift =  [-obj.Nc(1)-1,-1,-1+obj.Nc(1),obj.Nc(1),obj.Nc(1)+1];
-                   case -obj.Nc(1) %down
-                        Ashift = -obj.Nc(1)+[1,0,-1];
-                   case -obj.Nc(1)-1 % down left
-                        Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,-1,obj.Nc(1)-1];
-                   case -obj.Nc(1)+1 % down right
-                        Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,+1,obj.Nc(1)+1];
-                   otherwise
-                        warning('A particel skipped a cell!')
-                        keyboard
-               end
-           end   
-        end     
+        end    
         %%
         function update_neighbours (obj) 
-             
+            %
+            function Ashift = lookup_cellshift(obj,jshift)
+               if obj.dim==1
+                  switch jshift
+                      case 1
+                          Ashift = 1;
+                      case -1
+                          Ashift = -1;
+                      case inf
+                          Ashift = [-1,0,1];
+                      otherwise
+                            warning('A particel skipped a cell!')
+                            keyboard
+                  end
+
+               else
+                   switch jshift
+                       case 1 %right
+                            Ashift =  1+[obj.Nc(1),0,-obj.Nc(1)];
+                       case -1 %left
+                            Ashift = -1+[obj.Nc(1),0,-obj.Nc(1)];
+                       case obj.Nc(1)%up
+                            Ashift = obj.Nc(1)+[1,0,-1];
+                       case obj.Nc(1)+1 % upper right
+                            Ashift = [-obj.Nc(1)+1,1,1+obj.Nc(1),obj.Nc(1),obj.Nc(1)-1];
+                       case obj.Nc(1)-1 % upper left
+                           Ashift =  [-obj.Nc(1)-1,-1,-1+obj.Nc(1),obj.Nc(1),obj.Nc(1)+1];
+                       case -obj.Nc(1) %down
+                            Ashift = -obj.Nc(1)+[1,0,-1];
+                       case -obj.Nc(1)-1 % down left
+                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,-1,obj.Nc(1)-1];
+                       case -obj.Nc(1)+1 % down right
+                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,+1,obj.Nc(1)+1];
+                       case inf      %all surounding cells
+                            Ashift = [-1-obj.Nc(1), -obj.Nc(1), 1-obj.Nc(1),...
+                                        -1,0,1,...
+                                      -1+obj.Nc(1), obj.Nc(1), 1+obj.Nc(1)];
+                       otherwise
+                            warning('A particel skipped a cell!')
+                            keyboard
+                   end
+               end   
+            end
+            
             %% create cell structure
             if obj.dim == 1
                 cell_of_j_new = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
@@ -376,53 +383,113 @@ classdef sph_particles < handle
                     keyboard
                 end
             end
-              
-            cell_shift_of_j = cell_of_j_new - obj.cell_of_j;
-            j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0
-                  
-            %size(j_changes_cell,1)
+                                                        
             
+            %%
+            np_change = size(cell_of_j_new,1)-size(obj.cell_of_j,1); %
+ 
+            % adjust vector sizes
+            if np_change > 0 %new particles
+                obj.cell_of_j = [obj.cell_of_j; inf*ones(np_change,1)];
+                %enlarge matrix in order to have as much rows as particles
+                obj.AedgesXj(obj.N,1) = 0;   
+            elseif np_change <0 %particles to remove
+                cell_of_j_new = [cell_of_j_new; inf*ones(-np_change,1)];
+            end
+            cell_shift_of_j = cell_of_j_new - obj.cell_of_j;
+            
+            if any(isnan(cell_shift_of_j))
+                keyboard
+            end
+            
+            j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0
+                              
             %% loop over all particels which have changed the cell
-            for j = j_changes_cell'                                                  
-                cellshift = lookup_cellshift(obj,cell_shift_of_j(j)); %cells ahead in moving direction
+            for j = j_changes_cell'  
+ 
+                if cell_shift_of_j(j) == -inf % new particle
+                    jghost = 1; %(1: new, 0-moved, -1: removed)
+                    jreal = false;
+                    cell_shift_of_j(j) = inf;
+                elseif  cell_shift_of_j(j) == inf %obsolete particle
+                    jghost = -1;
+                    jreal = false;
+                    cell_shift_of_j(j) = inf;
+                else
+                    if any(j==obj.Ighost);
+                        jghost = 0;
+                        cell_shift_of_j(j) = inf;
+                        jreal = false;
+                    else
+                        jreal = true;
+                        jghost = nan;
+                    end
+                end
                 
-                %find obsolete points (all particels in cells which are no
-                %neighbours any more - right now, one behind ...|X|j|o|o|...
-                cells_to_look_at = obj.cell_of_j(j) - cellshift;
-                i_in_obs_neighb_cell = (double(ismember(obj.cell_of_j,cells_to_look_at)));
+                cellshift = lookup_cellshift(obj,cell_shift_of_j(j)); %cells ahead in moving direction (for regular particles)
                 
-                %find the belonging connectivities
-                i_in_obs_neighb_cell(j,1) = 5;  % just a number,to obtain an unsymmetric connection - abs(+-5 -+1)=4
-                temp = (i_in_obs_neighb_cell'*obj.AedgesXj);
-                pij_obs = (abs(temp)==4);
-                new_obsolete_k_pij = find(pij_obs');
-                    
-                % move j to new cell (each particel at one time for
-                % consistency)     % ...|o|j|o|o|... ->  ...|o|o|j|o|...
-                obj.cell_of_j(j) = cell_of_j_new(j);
+                %% find new and obsolete particles:
+                
+                %find obsolete points 
+                if (jghost<=0 || jreal)
+                    if jreal %normal particles
+                        % (all particels in cells which are no
+                        %neighbours any more - right now, one behind ...|X|j|o|o|...
+                        cells_to_look_at = obj.cell_of_j(j) - cellshift;
+                    else %remove all old connectivities, cellshift are all sourinding cells
+                        cells_to_look_at = obj.cell_of_j(j) + cellshift; %
+                    end
+                    i_in_obs_neighb_cell = (double(ismember(obj.cell_of_j,cells_to_look_at))); 
 
-                %find new points in cells ahead ...|o|o|j|X|...
-                cells_to_look_at = obj.cell_of_j(j) + cellshift;
-                i_in_new_neighb_cell = find(ismember(obj.cell_of_j,cells_to_look_at));
-                nCon_new = size(i_in_new_neighb_cell,1);                            
-                                                                
+                    %find the belonging connectivities
+                    %
+                    i_in_obs_neighb_cell(j,1) = 5;  % just a number,to obtain an unsymmetric connection - abs(+-5 -+1)=4
+                    temp    = (i_in_obs_neighb_cell'*obj.AedgesXj);
+                    pij_obs = (abs(temp)==4);
+                    new_obsolete_k_pij = find(pij_obs');
+                else
+                    new_obsolete_k_pij = [];
+                end
+                % move j to new cell (each particel at one time for
+                % consistency)     % ...|o|j|o|o|... ->  ...|o|o|j|o|...                
+                obj.cell_of_j(j) = cell_of_j_new(j);               
+                
+                if (jghost>=0 || jreal)
+                    %find new points in cells ahead ...|o|o|j|X|...
+                    cells_to_look_at = obj.cell_of_j(j) + cellshift;
+                    i_in_new_neighb_cell = find(ismember(obj.cell_of_j,cells_to_look_at));
+                    if ~jreal
+                        % in case of a ghost particle, remove the
+                        % selfconnection (not necessary for real particle
+                        % since I look only in neigbouring cells)
+                        i_in_new_neighb_cell=...
+                            i_in_new_neighb_cell(i_in_new_neighb_cell~=j);
+                    end
+                    nCon_new = size(i_in_new_neighb_cell,1);     
+                else
+                    nCon_new = 0;
+                end
+                                
+                %% apply changes %%
+                
                 % clear all obsolete connectivities of node j in the
                 % adjacency matrix nodes <-> edges
                 obj.AedgesXj(:,new_obsolete_k_pij) = 0;
+                %set a self connection for obsoltete particles
+                obj.pij(new_obsolete_k_pij,:) = ...
+                             ones(size(new_obsolete_k_pij,1) ,1) *[1,1]; 
                 obj.obsolete_k_pij = [obj.obsolete_k_pij;...
                                          new_obsolete_k_pij];
                 % http://de.mathworks.com/matlabcentral/newsreader/view_thread/283923
 
+                % insert new connectivies               
                 if nCon_new > 0
-                    %%new connectivies               
                     pij_new = [j*ones(nCon_new,1),i_in_new_neighb_cell]; 
                     nCon_obsolete = length(obj.obsolete_k_pij);
                     if nCon_new <= nCon_obsolete
                          k_pij_new =  obj.obsolete_k_pij(1:nCon_new);
                          obj.pij(k_pij_new,:) = pij_new;   
-                         obj.obsolete_k_pij = obj.obsolete_k_pij(nCon_new+1:end);    
-                         obj.pij(obj.obsolete_k_pij,:) =...;
-                            ones(nCon_obsolete-nCon_new,1)*[j,j];  %set a self connection                         
+                         obj.obsolete_k_pij = obj.obsolete_k_pij(nCon_new+1:end);                            
                     else
                          %write on present connectivities
                          obj.pij(obj.obsolete_k_pij,:)= pij_new (1:nCon_obsolete,:);
@@ -433,22 +500,32 @@ classdef sph_particles < handle
                          n_Apij    = size(obj.pij,1);
                          k_pij_new = [obj.obsolete_k_pij;...
                                      ((n_Apij-n_pij_new+1):n_Apij)'];
+                                 
                          % enlarge adjacency matrix 
-                         obj.AedgesXj(obj.N,n_Apij) = 0;                         
+                         obj.AedgesXj(obj.N,n_Apij) = 0;   
+                         
+                         % remove obsolete flags
+                         obj.obsolete_k_pij = []; 
                     end
 
-                    %% update adjacency matrix 
-                    %second, write new connectivities in adjacency matrix
-                    obj.AedgesXj (j , k_pij_new) = 1; %outgoing
+                    %% update adjacency matrix                    
+                    % write new connectivities in adjacency matrix
                     obj.AedgesXj (i_in_new_neighb_cell,k_pij_new) = -1*speye(nCon_new); %ingoing  
+                    obj.AedgesXj (j , k_pij_new) = 1; %outgoing                    
                 end
-            end   
-
+            end 
+            
+            % remove the obsolete ghost particles (which are =inf) in cell_of_j;
+            if np_change < 0               
+               obj.cell_of_j = obj.cell_of_j(1:end-(-np_change));
+               %and shrink connectivity matrix          
+               obj.AedgesXj(end-(-np_change)+1:end,:)=[];  
+            end
         end                        
         %%             
         function comp_distances(obj)
-            obj.xij_h=(obj.Xj(obj.pij(:,1),:)-obj.Xj(obj.pij(:,2),:));
-            obj.rij= sum(obj.xij_h.^2,2).^0.5;
+            obj.xij_h = (obj.Xj(obj.pij(:,1),:)-obj.Xj(obj.pij(:,2),:));
+            obj.rij   = sum(obj.xij_h.^2,2).^0.5;
             obj.xij_h = obj.xij_h./(obj.rij*ones(1,obj.dim));  
             
             % flag particle which are within the cutoff radius           ^       
@@ -584,7 +661,8 @@ classdef sph_particles < handle
         end
         %%
         function update_h(obj)
-           obj.hj = obj.hj - obj.dt * (obj.hj./obj.rhoj) .* obj.drhoj;
+           obj.hj(obj.Iin) = obj.hj(obj.Iin)...
+               - obj.dt * (obj.hj(obj.Iin)./obj.rhoj(obj.Iin)) .* obj.drhoj(obj.Iin);
            %disp(['min: ',num2str(min(obj.hj)),'; max: ',num2str(max(obj.hj))]);
         end
         %%
@@ -924,7 +1002,8 @@ classdef sph_particles < handle
                         
             Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));
             Imirror = obj.Iin(ki(Imirror_local));
-
+            obj.Ighost = Imirror;
+                      
             if obj.dim ==1
                 e=1;
             else
@@ -956,7 +1035,7 @@ classdef sph_particles < handle
                 obj.Imaterial_with_boun=[obj.Imaterial;
                                obj.N-size(Imirror,1)+1 , obj.N];
             elseif obj.N > size(obj.Iin,1)  %reset
-                keyboard
+              %  keyboard
                 obj.Xj = obj.Xj(obj.Iin,:);
                 obj.vj = obj.vj(obj.Iin,:);
                 obj.mj = obj.mj(obj.Iin);
@@ -975,5 +1054,14 @@ classdef sph_particles < handle
                 error('some points are out of the domain');
             end
         end  
+        %%
+        function checkDataOnline(obj)
+            disp ('check data');
+            %check if AedgesXj has equally many in and outgoing
+            %connectivities
+            if any(find(sum(obj.AedgesXj,1)))
+                keyboard
+            end
+        end
     end
 end

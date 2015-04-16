@@ -7,18 +7,17 @@ ps = sph_scenario();
 ps.read_data = false;
 ps.input_name = 'test';
 
-ps.dx      = 1e-3;
-ps.dtfactor   = 0.04;  
+ps.dx      = 2e-3;
 ps.tend    = 0.4;    
  
 ps.eta     = 1.2;     
 ps.eta2    = 2;
-ps.kernel  = 'M4';
+ps.kernel  = 'Wendland';
 ps.scheme   = 'v';
 ps.h_const  = false;
 
 %IO
-ps.plot_dt = 1e-2;  
+ps.plot_dt = 2e-2;  
 ps.save_as_movie = false;
 ps.plotstyle = 'dpv';
 

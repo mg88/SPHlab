@@ -28,7 +28,7 @@ Vp = ps.dx*ps.dx; %volume per particle
 %line 1
 startpoint = [0.22,0.49];
 endpoint   = [0.55,0.49];
-v0   = [0,-1];
+v0    = [0,-1];
 layer = 4;
 I = add_line2d(ps,startpoint,endpoint,layer);   
 addproperties(ps, I, Vp, rho0, v0,c0)

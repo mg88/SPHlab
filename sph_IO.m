@@ -132,6 +132,7 @@ classdef sph_IO < handle
                 hold off;
                 subplot(3,1,3)
                 plot(obj.con_dt,obj.con_energy)
+                title('change of energy');
                 %move figure to the left side
                 figpos=fig.Position;
                 figpos(1)=0;
@@ -148,11 +149,11 @@ classdef sph_IO < handle
                           data.t];
             
             % conservation of mass
-            massj = data.rhoj.*data.Vj;
+            massj = data.rhoj(data.Iin).*data.Vj(data.Iin);
             obj.con_mass = [obj.con_mass;...
                             sum(massj)];
             % conservation of momentum
-            momj  = massj*ones(1,data.dim) .* data.vj;
+            momj  = massj*ones(1,data.dim) .* data.vj(data.Iin,:);
             obj.con_momentum = [obj.con_momentum;...
                                 sum(momj,1)];
                             
@@ -244,7 +245,9 @@ classdef sph_IO < handle
             end
             if ~isempty(strfind(obj.plotstyle,'f'));     
                 subplot(nplot,1,iplot)
-                bar(data.Xj,[data.F_int,data.F_diss,data.F_diss_art,data.F_ST]); title('forces')
+                bar(data.Xj(data.Iin),...
+                    [data.F_int(data.Iin),data.F_diss(data.Iin),data.F_diss_art(data.Iin),data.F_ST(data.Iin)]);
+                title('forces')
                 xlim([data.Omega(1) data.Omega(2)]);
                 legend('F_{int}','F_{diss}','F_{diss-art}','F_{ST}');
             end

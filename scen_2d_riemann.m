@@ -4,7 +4,7 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-ps.dx      = 1e-2;
+ps.dx      = 4e-3;
 ps.tend    = 0.1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
@@ -20,7 +20,7 @@ rho0 = 1;
 c0   = 10;
 
 %% domain         
-ps.Omega = [0,1  ;  %x
+ps.Omega = [0.1,0.6  ;  %x
             0,0.5]; %y
 Vp = ps.dx*ps.dx; %volume per particle
   
