@@ -10,11 +10,11 @@ ps.input_name = 'test';
 
 ps.dx       = 4e-3;
 ps.dtfactor = 0.5;
-ps.tend     = 0.1;    
+ps.tend     = 0.5;    
 ps.eta      = 1.2;     
 ps.eta2     = 2;  
 ps.kernel   = 'Wendland';
-ps.scheme   = 'v';
+ps.scheme   = 'm';
 ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
@@ -47,10 +47,10 @@ addproperties(ps, I, Vp, rho0, v0,c0)
 % addproperties(ps, I, Vp, rho0, v0,c0)
 
 %projectile
-lowerleftcorner1 = [-0.1 , -0.01] ;
-upperrightcorner1= [-0.02, 0.01] ;
-c0 = 20;
-v0 = [5,0];
+lowerleftcorner1 = [-0.05 , -0.005] ;
+upperrightcorner1= [-0.02, 0.005] ;
+c0 = 2;
+v0 = [2,0];
 
 I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
 addproperties(ps, I, Vp, rho0, v0,c0)

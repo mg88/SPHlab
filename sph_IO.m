@@ -66,12 +66,15 @@ classdef sph_IO < handle
             %% plot
             if ~strcmp(obj.plotstyle,'')  %plot only, if plotstlye is specified
                   obj.mfigure = figure;
+                  set(gca,'DataAspectRatio',[1,1,1]);
             end
 
             
             %% movie
             if obj.save_as_movie
                 set(gca,'DataAspectRatio',[1,1,1]);
+                obj.mfigure.Units = 'normalized';
+                obj.mfigure.Position = [0 0 1 1];
                 obj.vidObj     = VideoWriter(obj.movie_name);
                 open(obj.vidObj);
             end            

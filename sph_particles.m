@@ -1,7 +1,6 @@
 %% ToDo:
 % - internal energy - non-isothermal
 % - boundary conditions (ghost particles)
-% - non-reflective boundary
 % - check against c++ code
 % - right now: dh/drho = 0
 % - regulariseInitialDensity
@@ -125,6 +124,19 @@ classdef sph_particles < handle
                         
             %initial smoothing length
             obj.hj       = ones(obj.N,1)*obj_scen.dx * obj_scen.eta; 
+            
+            
+            %test
+%             obj.hj(end-2) = obj.hj(end-2)*1; %2            
+%             obj.hj(end-1) = obj.hj(end-1)*1;
+        %     obj.hj(end)   = obj.hj(end)*3;%*2.85; %3
+        
+%              obj.mj(end-2)   = obj_scen.mj(end-2)*1;            ;    
+%             obj.mj(end-1)   = obj_scen.mj(end-1)*1;    
+%             obj.mj(end)   = obj_scen.mj(end)*0.5;%0.2;    
+
+            
+            
             obj.h_const  = obj_scen.h_const;
             obj.kernel   = obj_scen.kernel;
             obj.eta2_cutoff = obj_scen.eta2;
@@ -135,7 +147,6 @@ classdef sph_particles < handle
             obj.Imaterial_with_boun= obj.Imaterial;
             obj.damping_area = obj_scen.damping_area;     
             obj.mirrorParticlesj = obj_scen.mirrorParticlesj;     
-
             
             obj.dtfactor  = obj_scen.dtfactor;
             obj.tend      = obj_scen.tend;           
@@ -166,7 +177,7 @@ classdef sph_particles < handle
                 warning('quite a lot particles!')
                 keyboard
             end
-            obj.tmp=0;
+            obj.tmp=obj.mj(end);
         end
         %%
         function start_simulation(obj)            
@@ -191,7 +202,7 @@ classdef sph_particles < handle
                 end
                 icount = icount +1;    
                % keyboard
-             %   obj.checkDataOnline;
+               % obj.checkDataOnline;
             end
             obj.IO.do(obj);  %plot and save last step
             obj.IO.finalize();
@@ -212,6 +223,7 @@ classdef sph_particles < handle
              comp_kernel(obj)
              comp_forces(obj)
              comp_dRho(obj)
+                         
              if ~isempty(obj.damping_area)
                 comp_BCdamping(obj)
              end
@@ -220,6 +232,17 @@ classdef sph_particles < handle
              if ~obj.h_const
                  update_h(obj)
              end
+%              %% disp something
+%              fig=figure(3);
+%              NN = 8;
+%              plot(obj.Xj(obj.Iin(end-NN:end))',0,'x');
+%              
+%              hold on;
+%              plot(obj.Xj(obj.Iin(end-NN:end))',obj.vj(obj.Iin(end-NN:end)),'x');
+%              %diff(obj.Xj(obj.Iin(end-NN:end)))'
+%               figpos=fig.Position;
+%             figpos(2)=0;
+%             fig.Position =figpos;
         end     
         %%
         function update_dt(obj) 
@@ -235,20 +258,14 @@ classdef sph_particles < handle
            cut_off_radius = obj.eta2_cutoff* max(obj.hj);
            if obj.firststep
                obj.Rtcell = cut_off_radius * 1.1; %savety-factor
-               disp('create initial cell-structure');
+               disp('create initial cell-structure');               
                initial_search_neighbours(obj);
            elseif (obj.Rtcell < cut_off_radius) %ToDo: make cells smaller
                obj.Rtcell = cut_off_radius * 1.1; %savety-factor
                disp('create new cell-structure');
                initial_search_neighbours(obj);
            else
-%                if ~isempty(obj.mirrorParticlesj)
-                  %  initial_search_neighbours(obj); %% ToDo
-%                else
-                   update_neighbours(obj);
-%                end
-               
-             %  
+               update_neighbours(obj);
            end           
         end        
         %%
@@ -259,15 +276,27 @@ classdef sph_particles < handle
                 obj.cell_of_j = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
                     .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
                     +1; %in which sector is the particle
-                cellshift  = 1;
+                cellshift    = 1;
                 Ncell_search = obj.Nc-1;
+                if any(obj.cell_of_j ==obj.Nc) ||... %right
+                   any(obj.cell_of_j == 1 )           %left
+                        warning (' - particels in border cells - algorithm will break - ');
+                end                    
             else
                 cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
                     .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
                     +1; %in which sector is the particle
                 obj.cell_of_j = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
-                cellshift = [1,obj.Nc(1)-1,obj.Nc(1),obj.Nc(1)+1]; %upper-left side
+                cellshift    = [1,obj.Nc(1)-1,obj.Nc(1),obj.Nc(1)+1]; %upper-left side
                 Ncell_search = (obj.Nc(1)*obj.Nc(2) - (obj.Nc(1)+1));
+                
+                if any(cell_of_j_2d(:,1)==obj.Nc(1)) || ...%in very right cell
+                   any(cell_of_j_2d(:,2)==obj.Nc(2)) || ...%in very top cell
+                   any(cell_of_j_2d(:,1)==1)         || ...%in very left cell
+                   any(cell_of_j_2d(:,2)==1)               %in very bottom cell
+                    warning (' - particels in border cells - algorithm will break - ');
+                end
+                
             end
             %obj.Kcells=sparse(c1d,1:obj.N,1);              %matrix includes a 1-entry if a particle (colum) is in a cell (row)            
             
@@ -277,11 +306,15 @@ classdef sph_particles < handle
             end
             
             %% create connectivity list:
-            obj.pij=[];
-            kp=1;
+            obj.pij = [];            
+            sparse_i =[];
+            sparse_j =[];
+            sparse_s =[];
+            sparse_k = 1;
+            kp=1;            
             for kcell = 1:Ncell_search %loop over all cells except the upper row                
                 j_in_Cell = find(obj.cell_of_j==kcell);
-                if size(j_in_Cell,1)>0   
+                if size(j_in_Cell,1) > 0   
                    i_in_SurroundingCell = find(ismember(obj.cell_of_j,kcell+cellshift)); 
                    % i_in_SurroundingCell =
                    % find(ismembc(obj.cell_of_j,kcell+cellshift));
@@ -296,23 +329,31 @@ classdef sph_particles < handle
     %                     [Y,I] = sort(abs(d)); %sort
     %                     neighbors_of_j = I(Y<Rtsquare); 
                         %% without cutoff
-                       neighbors_of_j = ((kj+1):nParticle_all)'-kj; 
+                        neighbors_of_j = ((kj+1):nParticle_all)'-kj; 
                         %%
                         NN=size(neighbors_of_j,1);
                         obj.pij(kp:kp+NN-1,:)=...
                            [j_in_Cell(kj)*ones(NN,1),i_all(neighbors_of_j+kj)];
-                        kp=kp+NN; 
+                         
+                        %save indice matrices for the connectiviy matrix
+                        sparse_i (sparse_k:sparse_k+2*NN-1,:)=...
+                                     [i_all(neighbors_of_j+kj);
+                                     j_in_Cell(kj)*ones(NN,1)];
+                        sparse_j (sparse_k:sparse_k+2*NN-1,:)=...
+                                     [(kp:kp+NN-1)';
+                                      (kp:kp+NN-1)'];
+                        sparse_s (sparse_k:sparse_k+2*NN-1,:)=...
+                                     [-1*ones(NN,1);
+                                     1*ones(NN,1)];
+
+                        kp=kp+NN;
+                        sparse_k=sparse_k+2*NN;
                     end
                 end    
             end
-            %% create adjacency matrix nodes <-> edges
-            obj.AedgesXj = sparse(obj.N,size(obj.pij,1));
-            for kk = 1:obj.N
-                con = sparse(obj.pij==kk);
-                obj.AedgesXj(kk,con(:,1))= 1;  %outgoing edges
-                obj.AedgesXj(kk,con(:,2))= -1; % ingoing edges                  
-            end
-            
+            %create connectivity matrix
+            obj.AedgesXj =sparse(sparse_i,sparse_j,sparse_s);
+
             %reset update_neighbours help variables
             obj.obsolete_k_pij = [];
         end    
@@ -406,7 +447,7 @@ classdef sph_particles < handle
                               
             %% loop over all particels which have changed the cell
             for j = j_changes_cell'  
- 
+                
                 if cell_shift_of_j(j) == -inf % new particle
                     jghost = 1; %(1: new, 0-moved, -1: removed)
                     jreal = false;
@@ -441,10 +482,9 @@ classdef sph_particles < handle
                     end
                     i_in_obs_neighb_cell = (double(ismember(obj.cell_of_j,cells_to_look_at))); 
 
-                    %find the belonging connectivities
-                    %
+                    %find the belonging connectivities                    
                     i_in_obs_neighb_cell(j,1) = 5;  % just a number,to obtain an unsymmetric connection - abs(+-5 -+1)=4
-                    temp    = (i_in_obs_neighb_cell'*obj.AedgesXj);
+                    temp    = (i_in_obs_neighb_cell'*obj.AedgesXj);                    
                     pij_obs = (abs(temp)==4);
                     new_obsolete_k_pij = find(pij_obs');
                 else
@@ -513,6 +553,7 @@ classdef sph_particles < handle
                     obj.AedgesXj (i_in_new_neighb_cell,k_pij_new) = -1*speye(nCon_new); %ingoing  
                     obj.AedgesXj (j , k_pij_new) = 1; %outgoing                    
                 end
+                
             end 
             
             % remove the obsolete ghost particles (which are =inf) in cell_of_j;
@@ -964,8 +1005,20 @@ classdef sph_particles < handle
         end       
         %%                       
         function mirrorParticles (obj) %todo
- 
-            function d = distance(x,xborder)
+   
+    %todo: use cell-structure:
+%                     cells_to_look_at = obj.cell_of_j(obj.mirrorParticlesj)
+%                     j_to_lock_at =...
+%                         (double(ismember(obj.cell_of_j,cells_to_look_at))); 
+%             if obj.dim == 1
+%                 Ashift = [-1,0,1];
+%             else
+%                 Ashift = [-1-obj.Nc(1), -obj.Nc(1), 1-obj.Nc(1),...
+%                                -1,0,1,...
+%                           -1+obj.Nc(1), obj.Nc(1), 1+obj.Nc(1)];
+%             end
+            
+            function d = distanceToParticles(x,xborder)
                 borderline = mean(xborder); % y
                 if size(x,1) == 1
                     d = abs( x - borderline);
@@ -974,35 +1027,43 @@ classdef sph_particles < handle
                 end
             end
             
-
+ 
+            function d = point_to_line(pt, v1, v2)
+                  Np = size(pt,1);
+                  a = [v1 - v2,0];
+                  b = [pt - ones(Np,1)*v2,zeros(Np,1)];
+                  d = sum(cross(ones(Np,1)*a,b).^2,2).^0.5 ./ norm(a);  
+            end
             
-            %define border line
-%             if obj.dim ==1
-%                 kb=size(obj.Xj(obj.Iin),1); %last point
-%                 ki=1:kb-1; %other
-%             else
-%                          
-%                 %horizontal
+%             boundaries = [0,1]; %0:nr, 1: noslip
+%             
+%             for boun = boundaries
+%                 if boun==1 %nr
 % 
-% 
-%                 %vertical
-%                 y = max(obj.Xj(obj.Iin,1));
-%                % kb = abs(obj.Xj(obj.Iin,1) - y) < min(obj.hj)/2;
-%                 ki = find(abs(obj.Xj(obj.Iin,1) - y) >= min(obj.hj)/2);
-%                                
+%                 elseif boun==0 %1:noslip
+%                     j_to_lock_at = obj.Iin; %all particles
+%                     v1 = [0,0];
+%                     v2 = [1,1];
+%                     pt = obj.Xj(j_to_lock_at,:);
+%                     d = point_to_line(pt,v1,v2);
+%                     keyboard
+%                 else
+%                     error('no such boundary condition implmented');
+%                 end
 %             end
 %             
-            
+
+                                            
             kb = obj.mirrorParticlesj;
-            ki = find(kb==0);
+            ki = find(kb==0);  %ki = obj.Iin;
             
             % can probably be improved when taking the cell structure into
             % account
-            d = distance(obj.Xj(obj.Iin(ki)),obj.Xj(obj.Iin(kb)));
+            d = distanceToParticles(obj.Xj(obj.Iin(ki)),obj.Xj(obj.Iin(kb))); %+2e-3
                         
-            Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));
-            Imirror = obj.Iin(ki(Imirror_local));
-            obj.Ighost = Imirror;
+            Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
+            Imirror       = obj.Iin(ki(Imirror_local));
+            obj.Ighost    = Imirror;
                       
             if obj.dim ==1
                 e=1;
@@ -1012,16 +1073,40 @@ classdef sph_particles < handle
             
             if sum(Imirror)>0
                 obj.Xj = [obj.Xj(obj.Iin,:);
-                         obj.Xj(Imirror,:) + 2*d(Imirror_local) *e];
+                         obj.Xj(Imirror,:) + 2*d(Imirror_local) *e ]; %- 2e-3
 
                 obj.vj = [obj.vj(obj.Iin,:);
-                          -obj.vj(Imirror,:)];  %only valid in 1D!
+                          -obj.vj(Imirror,:)];  %probably only valid in 1D!
                 obj.pj = [obj.pj(obj.Iin);
                           -obj.pj(Imirror)]; 
+                      
+                % to examine:
+                if obj.vj(obj.Iin(end),1)>0  
+                    mV_factor_min = 0.3;
+                    mV_factor_max = 1.1;
+                    dmax = max(d(Imirror_local));
+                    drel = (dmax - d(Imirror_local))/dmax;
+                    mV_factor = (1-drel)*mV_factor_min +...
+                                 drel *mV_factor_max;
+                   % mV_factor = ones(size(Imirror,1),1);
+                else
+                    mV_factor_min = 2;
+                    mV_factor_max = 0.2;
+                    dmax = max(d(Imirror_local));
+                    drel = (dmax - d(Imirror_local))/dmax;
+                    mV_factor = (1-drel)*mV_factor_min +...
+                                 drel *mV_factor_max;
+                    %mV_factor = ones(size(Imirror,1),1);
+                end
+                %to examine:
+                mirror_mass=obj.mj(Imirror);
+                %mirror_mass=obj.tmp;
                 obj.mj = [obj.mj(obj.Iin);
-                          obj.mj(Imirror)];
+                          mV_factor.*mirror_mass];
+
                 obj.Vj = [obj.Vj(obj.Iin);
-                          obj.Vj(Imirror)];
+                          mV_factor.*obj.Vj(Imirror)];
+                      
                 rhofactor = 1;%  for shocks: 0.5;
                 obj.rhoj = [obj.rhoj(obj.Iin);
                              rhofactor*obj.rhoj(Imirror)];
@@ -1055,13 +1140,17 @@ classdef sph_particles < handle
             end
         end  
         %%
-        function checkDataOnline(obj)
+        function checkDataOnline(obj)                       
             disp ('check data');
+            %%
+            checkIfInDomain(obj)
+            %%
             %check if AedgesXj has equally many in and outgoing
             %connectivities
             if any(find(sum(obj.AedgesXj,1)))
                 keyboard
             end
+            %%
         end
     end
 end
