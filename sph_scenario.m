@@ -29,6 +29,10 @@ classdef sph_scenario < handle
         %bc
         damping_area % [lower-left point, upper-right point]^n
         mirrorParticlesj
+        bc;       %'p1';'p2;   for noflow, two points on boudary
+                  %'mirrorParticlesj' for no-reflecting
+                  %'outer_normal'
+                  %'damping_area'
         
         %% material parameter
         rho0j      % density
@@ -59,6 +63,7 @@ classdef sph_scenario < handle
         movie_name
         
         iter   % iterator - what indice would a new particle have        
+        iter_boun %counts the boundary conditions
     end
     
     methods
@@ -82,26 +87,27 @@ classdef sph_scenario < handle
            obj.write_data = false; 
            obj.output_name ='data_out.h5';
            obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[]);
+           obj.bc      = struct([]);
            %some initialization
-           obj.Iboun = [];
            obj.Iin   = [];
            obj.Imaterial = [];
            obj.damping_area = [];
            obj.mirrorParticlesj = [];
-           obj.iter  = 1;          
+           obj.iter  = 1; 
+           obj.iter_boun = 1;
         end       
         
-        
+        %%
         function name = get_movie_name(obj)
             movie_dir='movies/'; %ToDo: anders machen
             movie_format='.avi';
             name=[movie_dir,obj.movie_name,movie_format];
         end
-          
+        %%  
         function dispdata(obj)
            disp(obj)             
         end
-        
+        %%
         function addproperties(obj, I, Vp, rho0, v0,c0) %constant mass/Volume
             m0 = Vp * rho0;            
             obj.vj(I,:)    = ones(size(I,1),1)*v0;     
@@ -115,10 +121,28 @@ classdef sph_scenario < handle
             obj.Iin   = [obj.Iin; I];
 
         end
-
+        %%
+        function add_bc_nr(obj,mirrorParticlesj,outer_normal)
+            obj.bc(obj.iter_boun).mirrorParticlesj = mirrorParticlesj;
+            obj.bc(obj.iter_boun).outer_normal = outer_normal;
+            obj.bc(obj.iter_boun).p1 = []; %just bookkeeping
+            obj.bc(obj.iter_boun).p2 = [];
+            obj.bc(obj.iter_boun).damping_area = [];
+            obj.iter_boun = obj.iter_boun +1;
+        end
+        %%
+        function add_bc_noflow(obj,p1,p2,outer_normal)
+            obj.bc(obj.iter_boun).p1 = p1;
+            obj.bc(obj.iter_boun).p2 = p2;
+            obj.bc(obj.iter_boun).outer_normal = outer_normal;
+            obj.bc(obj.iter_boun).mirrorParticlesj = [];
+            obj.bc(obj.iter_boun).damping_area = [];
+            obj.iter_boun = obj.iter_boun +1;            
+        end
         
         %% % some geometry functions % %%
-         function I=add_line1d(obj,Astartpoint, Aendpoint)
+        %%
+        function I=add_line1d(obj,Astartpoint, Aendpoint)
             first_ind=obj.iter;
             for k=1:size(Astartpoint,1)
                 startpoint=Astartpoint(k,:);
@@ -135,9 +159,8 @@ classdef sph_scenario < handle
             end
             second_ind = obj.iter-1;
             I = (first_ind:second_ind)';
-         end
-        
-         
+        end        
+        %% 
         function I=add_line2d(obj,Astartpoint, Aendpoint,layer)  
             %place particles from startpoint to endpoint with distance dx
             %and with #layer
@@ -162,7 +185,7 @@ classdef sph_scenario < handle
             second_ind=obj.iter-1;
             I=(first_ind:second_ind)';            
         end
-        
+        %%
         function I=add_rectangle2d(obj,Alowerleftcorner, Aupperrightcorner)
             first_ind=obj.iter;
             for k=1:size(Alowerleftcorner,1)
@@ -183,6 +206,7 @@ classdef sph_scenario < handle
             second_ind=obj.iter-1;
             I=(first_ind:second_ind)';
         end
+        
         
                
     end    

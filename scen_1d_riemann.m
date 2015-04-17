@@ -57,11 +57,12 @@ ps.addproperties(I, Vp, rho0, v0,c0)
 
 
 %% set BC
-%ps.damping_area=[0.4;0.5];
 
-kb = zeros(size(ps.Xj));
-kb(end)=1; %last particle is mirror particle
-ps.mirrorParticlesj = logical(kb); 
+mirrorParticlesj = false(size(ps.Xj));
+mirrorParticlesj(end) = true;    %last particle is mirror particle
+outer_normal = 1;
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+%ps.bc(1).damping_area=[0.4;0.5];
 
 % %% -----------------------------------------------------
 %% disp data:

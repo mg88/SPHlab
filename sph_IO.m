@@ -197,15 +197,17 @@ classdef sph_IO < handle
             %
             function draw_nr_bc_area(data,y)
                 %%-- draw non-reflecting boundary condition
-               if ~isempty(data.damping_area)
-                   a = axis;
-                   b = data.omega_nr_bc;
-                   rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
-                             'EdgeColor',[0,1,0.5]);
-                   axis(a)
-                   kb = logical((data.Xj>b(1)) .* (data.Xj<b(2))); %particels in boundary layer
-                   % mark particles
-                   plot(data.Xj(kb),y(kb),'xr');
+               for boun = data.bc
+                   if ~isempty(boun.damping_area)
+                       a = axis;
+                       b = boun.damping_area;
+                       rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
+                                 'EdgeColor',[0,1,0.5]);
+                       axis(a)
+                       kb = logical((data.Xj>b(1)) .* (data.Xj<b(2))); %particels in boundary layer
+                       % mark particles
+                       plot(data.Xj(kb),y(kb),'xr');
+                   end
                end
                %%--                               
             end

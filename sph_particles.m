@@ -88,9 +88,7 @@ classdef sph_particles < handle
         Rtcell             % size of the cells (first cut-off)
         obsolete_k_pij;
         % boundary condition        
-        %non-refelcting
-        damping_area
-        mirrorParticlesj
+        bc  %struct
         
         %some flags
         distances_uptodate
@@ -145,8 +143,7 @@ classdef sph_particles < handle
             obj.Ighost      = [];
             obj.Imaterial   = obj_scen.Imaterial;   
             obj.Imaterial_with_boun= obj.Imaterial;
-            obj.damping_area = obj_scen.damping_area;     
-            obj.mirrorParticlesj = obj_scen.mirrorParticlesj;     
+            obj.bc = obj_scen.bc;     
             
             obj.dtfactor  = obj_scen.dtfactor;
             obj.tend      = obj_scen.tend;           
@@ -214,19 +211,17 @@ classdef sph_particles < handle
              comp_pressure(obj);
              comp_volume(obj);
              
-             % mirror step
-             if ~isempty(obj.mirrorParticlesj)
+             % mirror step for boundary condition
+             if ~isempty(obj.bc)
                 mirrorParticles (obj)
-             end
-             
+             end             
              search_neighbours(obj);
-             comp_kernel(obj)
+             comp_kernel(obj)             
              comp_forces(obj)
-             comp_dRho(obj)
-                         
-             if ~isempty(obj.damping_area)
-                comp_BCdamping(obj)
-             end
+             comp_dRho(obj)                             
+             %if ~isempty(obj.damping_area)
+             comp_BCdamping(obj)
+             %end
              update_half_step(obj)
              update_position(obj)   
              if ~obj.h_const
@@ -955,53 +950,57 @@ classdef sph_particles < handle
         end
         %%
         function comp_BCdamping(obj) %todo
-           xb = obj.damping_area;
-           L  = xb(2)-xb(1);           
-           kb = logical((obj.Xj(obj.Iin)>xb(1)) .* (obj.Xj(obj.Iin)<xb(2))); %particels in boundary layer
-           x  = obj.Xj(kb,:); 
-           Nkb = sum(kb);   
-           %hyperbolic
-           sigma0 = max(obj.cj) / L;
-           sigma  = sigma0 *(x - xb(1)) ./ (xb(2)-x +0.5*max(obj.hj));
-%             
-%            m      = 10;
-%            sigma0 = 10;
-%            sigma=sigma0*((obj.Xj(kb,:) - xb(1))./(xb(2)-xb(1))).^m;
-        
-            %switching functiosn
-           f0 = ones(Nkb,1);             % do nothing
-           f1 = - (x  - xb(2)) / L;         % linear
-           f2 = (L^2 - (x -xb(1)).^2) / L^2;  % quadratic
-                                  
-              %% damp if
-              %never
-           damp_never = zeros(Nkb,1);
-              %always           
-           damp_always = ones(Nkb,1);
-              %negative pressure
-           damp_pressure = obj.pj(kb,:)<0; 
-              %only if v<0
-           damp_velocity = obj.vj(kb,:)<0; 
-           
-           %% setup
-           damp = damp_never;
-           f_S = f1;  %density-change
-           f_Q = f1;  %forces
-           sigmaS = 1*sigma;
-           sigmaQ = 0.02*sigma;
-           
-           
-            %density:
-           S = - sigmaS.*(obj.rhoj(kb,:) - obj.rho0j(kb,:));
-           obj.drhoj(kb,:) = (obj.drhoj(kb,:).*f_S + S.*damp);         
-            %forces:
-           Q = - sigmaQ.*(obj.vj(kb,:) - 0);
-           obj.F_total(kb,:) = (obj.F_total(kb,:).*f_Q + Q.*damp ) ;
-
-           
-           %% stop particels
-%            kb_stop = logical ((obj.Xj>=xb(2)));
-%            obj.vj(kb_stop) = 0;
+           for boun = obj.bc
+               if ~isempty(boun.damping_area)
+%                    xb = obj.bc.damping_area;
+%                    L  = xb(2)-xb(1);           
+%                    kb = logical((obj.Xj(obj.Iin)>xb(1)) .* (obj.Xj(obj.Iin)<xb(2))); %particels in boundary layer
+%                    x  = obj.Xj(kb,:); 
+%                    Nkb = sum(kb);   
+%                    %hyperbolic
+%                    sigma0 = max(obj.cj) / L;
+%                    sigma  = sigma0 *(x - xb(1)) ./ (xb(2)-x +0.5*max(obj.hj));
+%         %             
+%         %            m      = 10;
+%         %            sigma0 = 10;
+%         %            sigma=sigma0*((obj.Xj(kb,:) - xb(1))./(xb(2)-xb(1))).^m;
+% 
+%                     %switching functiosn
+%                    f0 = ones(Nkb,1);             % do nothing
+%                    f1 = - (x  - xb(2)) / L;         % linear
+%                    f2 = (L^2 - (x -xb(1)).^2) / L^2;  % quadratic
+% 
+%                       %% damp if
+%                       %never
+%                    damp_never = zeros(Nkb,1);
+%                       %always           
+%                    damp_always = ones(Nkb,1);
+%                       %negative pressure
+%                    damp_pressure = obj.pj(kb,:)<0; 
+%                       %only if v<0
+%                    damp_velocity = obj.vj(kb,:)<0; 
+% 
+%                    %% setup
+%                    damp = damp_never;
+%                    f_S = f1;  %density-change
+%                    f_Q = f1;  %forces
+%                    sigmaS = 1*sigma;
+%                    sigmaQ = 0.02*sigma;
+% 
+% 
+%                     %density:
+%                    S = - sigmaS.*(obj.rhoj(kb,:) - obj.rho0j(kb,:));
+%                    obj.drhoj(kb,:) = (obj.drhoj(kb,:).*f_S + S.*damp);         
+%                     %forces:
+%                    Q = - sigmaQ.*(obj.vj(kb,:) - 0);
+%                    obj.F_total(kb,:) = (obj.F_total(kb,:).*f_Q + Q.*damp ) ;
+% 
+% 
+%                    %% stop particels
+%         %            kb_stop = logical ((obj.Xj>=xb(2)));
+%         %            obj.vj(kb_stop) = 0;
+               end
+           end
         end       
         %%                       
         function mirrorParticles (obj) %todo
@@ -1018,12 +1017,19 @@ classdef sph_particles < handle
 %                           -1+obj.Nc(1), obj.Nc(1), 1+obj.Nc(1)];
 %             end
             
-            function d = distanceToParticles(x,xborder)
-                borderline = mean(xborder); % y
-                if size(x,1) == 1
+            function d = distanceToParticles(x,xborder,outer_normal)
+                borderline = mean(xborder); 
+                if size(x,2) == 1
                     d = abs( x - borderline);
                 else
-                    d = abs( x(:,1) - borderline(1,1));  % vertical line
+                    if outer_normal(1)~=0 && outer_normal(2) ==0
+                        k=1; %vertical
+                    elseif outer_normal(1)==0 && outer_normal(2) ~=0
+                        k=2; %horizontal
+                    else
+                        error('other normal-directions are not implemented yet');
+                    end
+                    d = abs( x(:,k) - borderline(k));
                 end
             end
             
@@ -1035,102 +1041,126 @@ classdef sph_particles < handle
                   d = sum(cross(ones(Np,1)*a,b).^2,2).^0.5 ./ norm(a);  
             end
             
-%             boundaries = [0,1]; %0:nr, 1: noslip
-%             
-%             for boun = boundaries
-%                 if boun==1 %nr
-% 
-%                 elseif boun==0 %1:noslip
-%                     j_to_lock_at = obj.Iin; %all particles
-%                     v1 = [0,0];
-%                     v2 = [1,1];
-%                     pt = obj.Xj(j_to_lock_at,:);
-%                     d = point_to_line(pt,v1,v2);
-%                     keyboard
-%                 else
-%                     error('no such boundary condition implmented');
-%                 end
-%             end
-%             
-
-                                            
-            kb = obj.mirrorParticlesj;
-            ki = find(kb==0);  %ki = obj.Iin;
+           % keyboard
+            %reset to initial
+            obj.Ighost = [];
+            obj.Xj   = obj.Xj(obj.Iin,:);
+            obj.vj   = obj.vj(obj.Iin,:);
+            obj.mj   = obj.mj(obj.Iin);
+            obj.Vj   = obj.Vj(obj.Iin);
+            obj.rhoj = obj.rhoj(obj.Iin);
+            obj.hj   = obj.hj(obj.Iin);
+            obj.cj   = obj.cj(obj.Iin);
+            obj.pj   = obj.pj(obj.Iin);
+            obj.N    = size(obj.Xj,1);
+            obj.Imaterial_with_boun = obj.Imaterial;  
             
-            % can probably be improved when taking the cell structure into
-            % account
-            d = distanceToParticles(obj.Xj(obj.Iin(ki)),obj.Xj(obj.Iin(kb))); %+2e-3
-                        
-            Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
-            Imirror       = obj.Iin(ki(Imirror_local));
-            obj.Ighost    = Imirror;
-                      
-            if obj.dim ==1
-                e=1;
-            else
-                e=[1,0];% to the right
-            end
-            
-            if sum(Imirror)>0
-                obj.Xj = [obj.Xj(obj.Iin,:);
-                         obj.Xj(Imirror,:) + 2*d(Imirror_local) *e ]; %- 2e-3
+            %add boundaries:            
+            kk=0;
+            for boun = obj.bc
+                if ~isempty(boun.mirrorParticlesj) && isempty(boun.p1) %nr                                                        
+                    kb = boun.mirrorParticlesj;
+                    ki = find(kb==0);  %ki = obj.Iin;
+                    outer_normal = boun.outer_normal;
+                    
+                    if obj.dim == 1
+                        v_factor = -1;
+                    else
+                        v_factor = [-1,-1];
+                    end
+                    p_factor = -1   ;
+                    
+                    j_to_lock_at = obj.Iin(ki); %all particles
+                    % can probably be improved when taking the cell structure into
+                    % account
+                    d = distanceToParticles(obj.Xj(j_to_lock_at,:),...
+                                            obj.Xj(obj.Iin(kb),:),...
+                                            outer_normal);
 
-                obj.vj = [obj.vj(obj.Iin,:);
-                          -obj.vj(Imirror,:)];  %probably only valid in 1D!
-                obj.pj = [obj.pj(obj.Iin);
-                          -obj.pj(Imirror)]; 
-                      
-                % to examine:
-                if obj.vj(obj.Iin(end),1)>0  
-                    mV_factor_min = 0.3;
-                    mV_factor_max = 1.1;
-                    dmax = max(d(Imirror_local));
-                    drel = (dmax - d(Imirror_local))/dmax;
-                    mV_factor = (1-drel)*mV_factor_min +...
-                                 drel *mV_factor_max;
-                   % mV_factor = ones(size(Imirror,1),1);
+                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
+                    Imirror       = obj.Iin(ki(Imirror_local));
+                    
+                     % to examine:
+                    if obj.vj(obj.Iin(end),1)>0  
+                        mV_factor_min = 0.3;
+                        mV_factor_max = 1.1;
+                        dmax = max(d(Imirror_local));
+                        drel = (dmax - d(Imirror_local))/dmax;
+                        mV_factor = (1-drel)*mV_factor_min +...
+                                     drel *mV_factor_max;
+                        %mV_factor = ones(size(Imirror,1),1);
+                    else
+                        mV_factor_min = 2;
+                        mV_factor_max = 0.2;
+                        dmax = max(d(Imirror_local));
+                        drel = (dmax - d(Imirror_local))/dmax;
+                        mV_factor = (1-drel)*mV_factor_min +...
+                                     drel *mV_factor_max;
+                        %mV_factor = ones(size(Imirror,1),1);
+                    end
+                elseif isempty(boun.mirrorParticlesj) && ~isempty(boun.p1)
+                    outer_normal = boun.outer_normal;
+                    if obj.dim ==1
+                        v_factor = -1;
+                    else
+                       if outer_normal(1)~=0 && outer_normal(2) ==0
+                            v_factor = [-1,1];
+                       elseif outer_normal(1)==0 && outer_normal(2) ~=0
+                            v_factor = [1,-1];
+                       else
+                          error('other normal-directions are not implemented yet');
+                       end
+                    end
+                    
+                    mV_factor  = 1;
+                    p_factor = 1;
+                    j_to_lock_at = obj.Iin; %all particles
+                    pXj = obj.Xj(j_to_lock_at,:);
+                    if obj.dim == 1
+                         d = abs(pXj-boun.p1);
+                    else
+                         d = point_to_line(pXj,boun.p1,boun.p2);
+                    end
+                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
+                    Imirror       = obj.Iin(Imirror_local);
                 else
-                    mV_factor_min = 2;
-                    mV_factor_max = 0.2;
-                    dmax = max(d(Imirror_local));
-                    drel = (dmax - d(Imirror_local))/dmax;
-                    mV_factor = (1-drel)*mV_factor_min +...
-                                 drel *mV_factor_max;
-                    %mV_factor = ones(size(Imirror,1),1);
+                    error('no such boundary condition possible');
                 end
-                %to examine:
-                mirror_mass=obj.mj(Imirror);
-                %mirror_mass=obj.tmp;
-                obj.mj = [obj.mj(obj.Iin);
-                          mV_factor.*mirror_mass];
-
-                obj.Vj = [obj.Vj(obj.Iin);
-                          mV_factor.*obj.Vj(Imirror)];
-                      
-                rhofactor = 1;%  for shocks: 0.5;
-                obj.rhoj = [obj.rhoj(obj.Iin);
-                             rhofactor*obj.rhoj(Imirror)];
-                obj.hj = [obj.hj(obj.Iin);
-                          obj.hj(Imirror)];
-                obj.cj = [obj.cj(obj.Iin);
-                          obj.cj(Imirror)]; 
-
-                obj.N = size(obj.Xj,1);
+                NN = size(Imirror,1);                   
+                obj.Ighost(kk+(1:NN),:) = Imirror;
                 
-                obj.Imaterial_with_boun=[obj.Imaterial;
-                               obj.N-size(Imirror,1)+1 , obj.N];
-            elseif obj.N > size(obj.Iin,1)  %reset
-              %  keyboard
-                obj.Xj = obj.Xj(obj.Iin,:);
-                obj.vj = obj.vj(obj.Iin,:);
-                obj.mj = obj.mj(obj.Iin);
-                obj.Vj = obj.vj(obj.Iin);
-                obj.rhoj = obj.rhoj(obj.Iin);
-                obj.hj = obj.hj(obj.Iin);
-                obj.cj = obj.cj(obj.Iin);
-                obj.pj = obj.pj(obj.Iin);
-                obj.N = size(obj.Xj,1);
-                obj.Imaterial_with_boun = obj.Imaterial;                
+                %copy data
+                if ~isempty(Imirror)
+                    obj.Xj (obj.N+(1:NN),:) = ...
+                             obj.Xj(Imirror,:) + 2*d(Imirror_local)*outer_normal; 
+
+                    obj.vj (obj.N+(1:NN),:) = ...
+                              obj.vj(Imirror,:).*(ones(NN,1)*v_factor);  %probably only valid in 1D!
+                    obj.pj (obj.N+(1:NN),:) = ...
+                              obj.pj(Imirror).*p_factor; 
+
+                    %to examine:
+                    mirror_mass=obj.mj(Imirror);
+                    %mirror_mass=obj.tmp;
+                    obj.mj (obj.N+(1:NN),:) = ...
+                              mirror_mass.*mV_factor;
+
+                    obj.Vj (obj.N+(1:NN),:) = ...
+                              obj.Vj(Imirror).*mV_factor;
+
+                    obj.rhoj (obj.N+(1:NN),:) = ...
+                                obj.rhoj(Imirror);
+                    obj.hj (obj.N+(1:NN),:) = ...
+                              obj.hj(Imirror);
+                    obj.cj (obj.N+(1:NN),:) = ...
+                              obj.cj(Imirror); 
+
+                    obj.N = size(obj.Xj,1);
+
+                    obj.Imaterial_with_boun=[obj.Imaterial_with_boun;
+                                             obj.N-NN+1 , obj.N];
+                end
+                kk=kk+NN;
             end
         end            
         %%

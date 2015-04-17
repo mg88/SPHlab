@@ -10,13 +10,13 @@ ps.eta     = 1.2;
 ps.eta2    = 2;  
 
 %IO
-ps.plot_dt = 1e-3;   
+ps.plot_dt = 6e-2;   
 ps.save_as_movie = false;
 ps.plotstyle = 'vd';
 
  %% material parameter
 rho0 = 1;     %relativ density
-c0   = 10; 
+c0   = 30; 
 
 
 %% domain         
@@ -24,22 +24,20 @@ ps.Omega = [0,1.1];
 Vp = ps.dx; %volume per particle
 
 %% active particles
-leftpoint = 0.08;
+leftpoint = 0.18;
 rightpoint= 0.88;
-v0   = -1;
+v0   = 1;
 I = add_line1d(ps,leftpoint,rightpoint);
 addproperties(ps, I, Vp, rho0, v0,c0)
 
-%% boundary:
-bounleft1  = 0;
-bounright1 = 0.05;
-bounleft2  = 0.95;
-bounright2 = 1;
-v0=0;
-I = add_line1d(ps,[bounleft1;bounleft2]...
-                 ,[bounright1;bounright2]);
-error('boundary implementation is now different');
-addproperties(ps, I, Vp, rho0, v0,c0, true)
+%% BC:
+p1 = 0.05;
+n = -1;
+ps.add_bc_noflow(p1,0,n);
+
+p1  = 0.95;
+n=1;
+ps.add_bc_noflow(p1,0,n);
 
 %% -----------------------------------------------------
 

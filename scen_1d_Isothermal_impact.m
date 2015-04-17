@@ -25,7 +25,7 @@ ps.plotstyle = 'dpv';
 
 
 %% domain         
-ps.Omega = [0, 1.8]; 
+ps.Omega = [-0.05, 1.8]; 
 Vp = ps.dx; %volume per particle
 
 %% active particles

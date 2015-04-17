@@ -20,7 +20,7 @@ ps.h_const  = false;
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
-ps.fixaxes.p = [-1,1];
+ps.fixaxes.p = [-0.5,0.5];
 
 %% material parameter
 rho0 = 1;   

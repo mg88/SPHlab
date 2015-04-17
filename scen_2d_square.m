@@ -14,7 +14,7 @@ ps.eta2    = 2;
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
-%ps.fixaxes.p = [-0.1,0.1];
+ps.fixaxes.p = [-0.1,0.1];
 
 %% material parameter
 rho0 = 1.0;  
@@ -38,10 +38,29 @@ N        = size(ps.Iin,1);
 ps.rhoj(floor(N/2-20)) = 1.1;  % peak in the center
 
 %% set BC
+%no-reflecting bc right
 y  = max(ps.Xj(ps.Iin,1));
-kb = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;
-             
-ps.mirrorParticlesj = kb;
+mirrorParticlesj = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;    
+outer_normal =[1,0];
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+%no-reflecting bc left
+y  = min(ps.Xj(ps.Iin,1));
+mirrorParticlesj = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;    
+outer_normal =[-1,0];
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+
+%no-reflecting bc bottom
+y  = min(ps.Xj(ps.Iin,2));
+mirrorParticlesj = abs(ps.Xj(ps.Iin,2) - y) < ps.dx/2;    
+outer_normal =[0,-1];
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+
+%no-reflecting bc top
+y  = max(ps.Xj(ps.Iin,2));
+mirrorParticlesj = abs(ps.Xj(ps.Iin,2) - y) < ps.dx/2;    
+outer_normal =[0,1];
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+
 
 %% -----------------------------------------------------
 

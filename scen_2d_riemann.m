@@ -4,7 +4,7 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-ps.dx      = 4e-3;
+ps.dx      = 6e-3;
 ps.tend    = 0.1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
@@ -13,7 +13,7 @@ ps.eta2    = 2;
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
 ps.plotstyle = 'patches';
-ps.fixaxes.p = [-0.5,0.5];
+%ps.fixaxes.p = [-0.5,0.5];
 
  %% material parameter
 rho0 = 1;   
@@ -61,11 +61,27 @@ addproperties(ps, I, Vp, rho0, v0, c0)
 %addproperties(ps, I, Vp, rho0, v0,c0, false)
 
 %% set BC
+%no-reflecting bc right
 y  = max(ps.Xj(ps.Iin,1));
-kb = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;
-             
-ps.mirrorParticlesj = kb;
+mirrorParticlesj = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;    
+outer_normal =[1,0];
+ps.add_bc_nr(mirrorParticlesj,outer_normal);
+%no-reflecting bc left
+% y  = min(ps.Xj(ps.Iin,1));
+% mirrorParticlesj = abs(ps.Xj(ps.Iin,1) - y) < ps.dx/2;    
+% outer_normal =[-1,0];
+% ps.add_bc_nr(mirrorParticlesj,outer_normal);
 
+%no-flow on bottom
+p1 =  [0,min(ps.Xj(:,2))-ps.dx/2];
+p2 =  [1,min(ps.Xj(:,2))-ps.dx/2];
+outer_normal =[0,-1];
+ps.add_bc_noflow(p1,p2,outer_normal);
+%no-flow on top
+p1 =  [0,max(ps.Xj(:,2))+ps.dx/2];
+p2 =  [1,max(ps.Xj(:,2))+ps.dx/2];
+outer_normal =[0,1];
+ps.add_bc_noflow(p1,p2,outer_normal);
 %% -----------------------------------------------------
 
 %% disp data:
