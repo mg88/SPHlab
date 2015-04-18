@@ -20,7 +20,7 @@ ps.h_const = false;
 ps.plot_dt = 1e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plotstyle = 'pv';
+ps.plot_param = 'fvp';
 ps.fixaxes.v = [-0.003, 0.003];
 ps.fixaxes.p = [-0.005 , 0.005];
 

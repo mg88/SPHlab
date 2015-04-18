@@ -12,6 +12,7 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
+ps.plot_param = 'p';
 
 %% material parameter
 rho0 = 1;     %relativ density

@@ -19,7 +19,7 @@ ps.h_const  = false;
 %IO
 ps.plot_dt = 2e-2;  
 ps.save_as_movie = false;
-ps.plotstyle = 'dpv';
+ps.plot_param = 'dpv';
 
  %% material parameter
 

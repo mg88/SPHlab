@@ -19,7 +19,9 @@ ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plotstyle = 'patches';
+ps.plot_param = 'vpd';
+ps.plot_style.p = 'plot3';
+ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.5,0.5];
 
 %% material parameter

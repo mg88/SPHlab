@@ -13,7 +13,8 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plotstyle = 'patches';
+ps.plot_param = 'vp';
+ps.plot_style.p = 'patches';
 ps.fixaxes.p = [-0.1,0.1];
 
 %% material parameter

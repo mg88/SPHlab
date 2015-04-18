@@ -12,8 +12,9 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plotstyle = 'patches';
-%ps.fixaxes.p = [-0.5,0.5];
+ps.plot_param = 'xvp';
+ps.plot_style.p = 'plot3';
+ps.fixaxes.p = [-0.5,0.5];
 
  %% material parameter
 rho0 = 1;   

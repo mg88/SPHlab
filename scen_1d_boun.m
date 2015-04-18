@@ -12,7 +12,7 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 6e-2;   
 ps.save_as_movie = false;
-ps.plotstyle = 'vd';
+ps.plot_param = 'vd';
 
  %% material parameter
 rho0 = 1;     %relativ density

@@ -55,8 +55,9 @@ classdef sph_scenario < handle
        
         % some plotting properties
         plot_dt         % plotting timestep
-        plotstyle       % 1D: x-position, v-velocity, p-pressure, d-density, f-forces
-                        % 2D: scatter | trisurf | patches  
+        plot_style       % 1D;x: scatter  
+                         % 2D - scalar: trisurf | patches; field: quiver
+        plot_param       %which parameter shall be plottet v-velocity, x-position, p-pressure, d-density, f-forces
         fixaxes         %struct to define the axes           
         %movie settings                        
         save_as_movie
@@ -82,11 +83,17 @@ classdef sph_scenario < handle
            %IO
            obj.save_as_movie = false;
            obj.movie_name = 'out';
-           obj.plotstyle = 'scatter';
+           obj.plot_param = 'xp';
+           obj.plot_style = struct('x','scatter',...              
+                                   'p','patches',...
+                                   'd','patches',...
+                                   'v','quiver',...
+                                   'f','quiver',...
+                                   'e','patches');
            obj.read_data = false;           
            obj.write_data = false; 
            obj.output_name ='data_out.h5';
-           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[]);
+           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[],'e',[]);
            obj.bc      = struct([]);
            %some initialization
            obj.Iin   = [];
