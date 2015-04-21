@@ -9,7 +9,7 @@ classdef sph_IO < handle
         write_data
         
         %plot
-        mfigure
+        mfigure       %figurehandle
         plot_style
         plot_param
         plot_dt
@@ -68,11 +68,19 @@ classdef sph_IO < handle
             if ~strcmp(obj.plot_param,'')  %plot only, if plotstlye is specified
                  obj.mfigure = figure;
                  set(gca,'DataAspectRatio',[1,1,1]);
-                 if length(obj.plot_param) > 1
+                 if length(obj.plot_param) > 3
                         obj.mfigure.Units = 'normalized';
                         figpos=obj.mfigure.Position;
-                        figpos(1)=0;
-                        figpos(3)=1;
+                        figpos(1)=0.1;
+                        figpos(3)=0.8;
+                        figpos(2)=0.1;
+                        figpos(4)=0.8;
+                        obj.mfigure.Position =figpos;
+                   elseif length(obj.plot_param) > 1 
+                        obj.mfigure.Units = 'normalized';
+                        figpos=obj.mfigure.Position;
+                        figpos(1)=0.1;
+                        figpos(3)=0.8;
                         obj.mfigure.Position =figpos;
                  end
             end
@@ -222,7 +230,6 @@ classdef sph_IO < handle
                 t2   = tri(goodt,:);
                 trisurf(t2,x,y,z)
                 %trimesh(t2,x,y,z)
-                view(2)
             end
                      
             function dat_max=plot_field(x,dat)
@@ -236,15 +243,21 @@ classdef sph_IO < handle
             
            figure(obj.mfigure);
            nplot = length(obj.plot_param);
-
+           if nplot <=3    
+               nxplot = nplot;
+               nyplot =1;
+           else
+               nxplot = ceil(nplot/2);
+               nyplot = 2;
+           end
            iplot=1;
            x   = obj_particles.Xj;
            t   = obj_particles.t;
            mat = obj_particles.Imaterial_with_boun;
            title_additive = ['; t=',num2str(t),'; N= ',num2str(obj_particles.N)];
+           clf %clear figure
            for para = obj.plot_param;
-               subplot(1,nplot,iplot);
-               axis auto
+               subplot(nyplot,nxplot,iplot);
                hold on;
                if para == 'x'
                    dat = zeros(obj_particles.N,1);
@@ -267,7 +280,7 @@ classdef sph_IO < handle
                    limaxes = obj.fixaxes.v;
                    style   = obj.plot_style.v;
                elseif para == 'f'
-                   name = 'F_total'; %todo plot components
+                   name = 'F-total'; %todo plot components
                    dat = obj_particles.F_total;
                    limaxes = obj.fixaxes.f;
                    style   = obj.plot_style.f;
@@ -277,7 +290,7 @@ classdef sph_IO < handle
                    limaxes = obj.fixaxes.e;
                    style   = obj.plot_style.e;
                else
-                   warning('parameter not supported');
+                   warning('variable is not implemented for plotting');
                    keyboard
                end
 
@@ -286,7 +299,11 @@ classdef sph_IO < handle
                    if para == 'f'
                        plot_force(obj_particles);
                    else
-                       plot_scatter(x,dat,mat);   
+                       plot_scatter(x,dat,mat); 
+                       
+                       %mark mirror particle
+                       plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
+                       
                    end
                    if ~isempty(limaxes)
                      ylim(limaxes);
@@ -294,13 +311,19 @@ classdef sph_IO < handle
                elseif obj_particles.dim == 2
                    if para == 'x'
                       plot_scatter(x(:,1),x(:,2),mat); 
+                      axis equal
                    elseif any(para == 'pde') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
                             plot_trisurf(x(:,1),x(:,2),dat,2*max(obj_particles.hj));
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
+                            view([-1,-1,1]);
+                            %view(2)
                             shading interp
+                            if ~isempty(limaxes)
+                                 zlim(limaxes)
+                            end
                             colorbar 
                             colormap jet
                         elseif strcmp (style,'patches')                            	
@@ -312,17 +335,20 @@ classdef sph_IO < handle
                             end
                             colorbar 
                             colormap jet
+                            axis equal
                         elseif strcmp (style,'plot3')
                             plot3(x(:,1),x(:,2),dat,'o');
                             if ~isempty(limaxes)
                                  caxis(limaxes)
+                                 zlim(limaxes)
                             end
-                            view([-1,-1,1]);
+                            view([0,-1,0]);
                         else
                             error([style, '- plotstyle is not supported']);
                         end
                    elseif any(para == 'vf') % velocity, forces -> field
-                           dat_max = plot_field(x,dat);
+                           dat_max = plot_field(x(obj_particles.Iin,:),dat(obj_particles.Iin,:));
+                           axis equal
                            title_additive= [title_additive,'; max|',para,'|=',num2str(dat_max)];
                    else
                        error([obj.plotstyle, '- plotstyle is not supported']);
@@ -332,12 +358,10 @@ classdef sph_IO < handle
                title_additive='';
                %% plot additional info
                plot_geometry(obj,obj_particles);
-
                iplot = iplot+1;
                hold off;
            end
            drawnow
-           clf
         end          
         %%
         function plot_geometry(~,obj_p)
@@ -359,11 +383,10 @@ classdef sph_IO < handle
                        axis(a);
                    end
                end
-
+                
            elseif obj_p.dim == 2
                
-               %axis equal
-               axis('equal')                   
+               %axis('equal')                   
                %Omega:
                rectangle('Position',[obj_p.Omega(1,1),obj_p.Omega(2,1),...
                    obj_p.Omega(1,2)-obj_p.Omega(1,1),obj_p.Omega(2,2)-obj_p.Omega(2,1)]); %boundary

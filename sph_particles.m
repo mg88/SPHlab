@@ -1,6 +1,5 @@
 %% ToDo:
 % - internal energy - non-isothermal
-% - boundary conditions (ghost particles)
 % - check against c++ code
 % - right now: dh/drho = 0
 % - regulariseInitialDensity
@@ -54,6 +53,9 @@ classdef sph_particles < handle
         cj
         beta
         mu
+        
+        g_ext    %gravity
+
         %scheme
         scheme 
                 
@@ -115,10 +117,10 @@ classdef sph_particles < handle
             obj.cj0   = obj_scen.c0j;
             obj.cj    = obj_scen.cj;            
             
-            obj.beta = obj_scen.beta;
-            obj.mu   = obj_scen.mu;
-                                    
-            obj.mj   = obj_scen.mj;    
+            obj.beta  = obj_scen.beta;
+            obj.mu    = obj_scen.mu;
+            obj.g_ext = obj_scen.g_ext;                      
+            obj.mj    = obj_scen.mj;    
                         
             %initial smoothing length
             obj.hj       = ones(obj.N,1)*obj_scen.dx * obj_scen.eta; 
@@ -170,11 +172,11 @@ classdef sph_particles < handle
             obj.t = 0;
             %check
             checkIfInDomain(obj);
-            if obj.N > 31000
+            if obj.N > 50000
                 warning('quite a lot particles!')
                 keyboard
             end
-            obj.tmp=obj.mj(end);
+            obj.tmp=true;
         end
         %%
         function start_simulation(obj)            
@@ -184,6 +186,7 @@ classdef sph_particles < handle
             tic
             ttic = tic;
             obj.IO.initialize()
+            temp = inf;
             while obj.t < obj.tend
                 update_dt(obj);
                 perform_timestep(obj);
@@ -197,8 +200,11 @@ classdef sph_particles < handle
                     tic    
                     %disp(['tmp: ',num2str(obj.tmp)]);
                 end
-                icount = icount +1;    
-               % keyboard
+                icount = icount +1;                  
+%                 if max(abs(obj.pj)) >temp && max(abs(obj.pj))<1e-3     && obj.t>0.3             
+%                     keyboard
+%                 end
+%                 temp = max(obj.pj);
                % obj.checkDataOnline;
             end
             obj.IO.do(obj);  %plot and save last step
@@ -674,6 +680,9 @@ classdef sph_particles < handle
                 obj.vj(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + 0.5*obj.dt *...
                     (obj.F_int(obj.Iin,:)+obj.F_ST(obj.Iin,:)+obj.F_diss(obj.Iin,:))...
                     ./(obj.mj(obj.Iin)*ones(1,obj.dim));
+                if ~isempty(obj.g_ext)
+                    obj.vj(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + 0.5*obj.dt * ones(size(obj.Iin))*obj.g_ext;
+                end
             end
         end
         %%
@@ -682,13 +691,21 @@ classdef sph_particles < handle
                 obj.rhoj_half(obj.Iin) = obj.rhoj(obj.Iin)  + 0.5*obj.dt*obj.drhoj(obj.Iin);
                 obj.vj_half(obj.Iin,:)  = obj.vj(obj.Iin,:) + 0.5*obj.dt * ...
                     (obj.F_total(obj.Iin,:))./(obj.mj(obj.Iin)*ones(1,obj.dim));
+                if ~isempty(obj.g_ext)
+                    obj.vj_half(obj.Iin,:)  = obj.vj(obj.Iin,:) + 0.5*obj.dt * ones(size(obj.Iin))*obj.g_ext;
+                end
+                
+                
                 obj.firststep=false;
             else
                 obj.rhoj_half(obj.Iin) = obj.rhoj_half(obj.Iin)+ obj.dt * obj.drhoj(obj.Iin);
                 obj.vj_half(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + obj.dt *...
                     (obj.F_total(obj.Iin,:))./(obj.mj(obj.Iin)*ones(1,obj.dim));
-                %+ones(size(Iin))*g_ext);
+                if ~isempty(obj.g_ext)
+                    obj.vj_half(obj.Iin,:)  = obj.vj_half(obj.Iin,:) + obj.dt * ones(size(obj.Iin))*obj.g_ext;
+                end
             end
+            
         end
         %%
         function update_position(obj) 
@@ -1060,6 +1077,12 @@ classdef sph_particles < handle
             for boun = obj.bc
                 if ~isempty(boun.mirrorParticlesj) && isempty(boun.p1) %nr                                                        
                     kb = boun.mirrorParticlesj;
+                    
+%                     if obj.firststep
+%                          obj.hj(kb)=obj.hj(kb)*2;
+%                          disp ('change h on the boundary!!')
+%                     end
+%                     
                     ki = find(kb==0);  %ki = obj.Iin;
                     outer_normal = boun.outer_normal;
                     
@@ -1077,27 +1100,35 @@ classdef sph_particles < handle
                                             obj.Xj(obj.Iin(kb),:),...
                                             outer_normal);
 
-                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
+                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin)); %%
                     Imirror       = obj.Iin(ki(Imirror_local));
                     
-                     % to examine:
-                    if obj.vj(obj.Iin(end),1)>0  
-                        mV_factor_min = 0.3;
-                        mV_factor_max = 1.1;
-                        dmax = max(d(Imirror_local));
-                        drel = (dmax - d(Imirror_local))/dmax;
-                        mV_factor = (1-drel)*mV_factor_min +...
-                                     drel *mV_factor_max;
-                        %mV_factor = ones(size(Imirror,1),1);
-                    else
-                        mV_factor_min = 2;
-                        mV_factor_max = 0.2;
-                        dmax = max(d(Imirror_local));
-                        drel = (dmax - d(Imirror_local))/dmax;
-                        mV_factor = (1-drel)*mV_factor_min +...
-                                     drel *mV_factor_max;
-                        %mV_factor = ones(size(Imirror,1),1);
-                    end
+                    
+                    %%
+                     mV_factor = ones(size(Imirror,1),1);
+                     % to examine: %tweak on the mass
+                     tweakmass = false;
+                     if tweakmass
+                        if obj.vj(obj.Iin(end),1)>0  
+                            %linear 
+                            mV_factor_min = 0.3;
+                            mV_factor_max = 1.1;
+                            dmax = max(d(Imirror_local));
+                            drel = (dmax - d(Imirror_local))/dmax;
+                            mV_factor = (1-drel)*mV_factor_min +...
+                                         drel *mV_factor_max;
+                        else
+                            mV_factor_min = 2;
+                            mV_factor_max = 0.2;
+                            dmax = max(d(Imirror_local));
+                            drel = (dmax - d(Imirror_local))/dmax;
+                            mV_factor = (1-drel)*mV_factor_min +...
+                                         drel *mV_factor_max;
+                        end
+                     end
+                    % or no adjustment:
+
+                    
                 elseif isempty(boun.mirrorParticlesj) && ~isempty(boun.p1)
                     outer_normal = boun.outer_normal;
                     if obj.dim ==1

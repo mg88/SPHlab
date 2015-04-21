@@ -13,17 +13,20 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plot_param = 'vp';
+ps.plot_param = 'xpd';
 ps.plot_style.p = 'patches';
+ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.1,0.1];
+ps.fixaxes.d = [1-1e-3,1+1e-3];
+
 
 %% material parameter
 rho0 = 1.0;  
 c0   = 10;
 
 %% domain
-ps.Omega = [0,0.5;
-            0,1]; 
+ps.Omega = [-0.1,0.6;
+            -0.1,1.1]; 
 Vp = ps.dx*ps.dx; %volume per particle
  
         

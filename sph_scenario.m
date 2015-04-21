@@ -78,7 +78,7 @@ classdef sph_scenario < handle
            obj.beta = 0;
            obj.mu   = 0;
            obj.geo_noise = 0;
-           obj.g_ext = [0,0]; % not in use yet
+           obj.g_ext = []; 
            
            %IO
            obj.save_as_movie = false;
@@ -116,13 +116,13 @@ classdef sph_scenario < handle
         end
         %%
         function addproperties(obj, I, Vp, rho0, v0,c0) %constant mass/Volume
-            m0 = Vp * rho0;            
+            m0 = Vp * rho0;  
+            obj.mj(I,1)    = m0;
             obj.vj(I,:)    = ones(size(I,1),1)*v0;     
             obj.c0j(I,1)   = c0;
             obj.cj(I,1)    = c0;
             obj.rho0j(I,1) = rho0;
             obj.rhoj(I,1)  = rho0;
-            obj.mj(I,1)    = m0;
             obj.Imaterial = [obj.Imaterial;...
                              [I(1) I(end)] ];
             obj.Iin   = [obj.Iin; I];
@@ -198,7 +198,7 @@ classdef sph_scenario < handle
             for k=1:size(Alowerleftcorner,1)
                 lowerleftcorner = Alowerleftcorner(k,:);
                 upperrightcorner= Aupperrightcorner(k,:);
-                x_par=lowerleftcorner;
+                x_par = lowerleftcorner;
                 while (x_par(2) <= upperrightcorner(2));
                     while (x_par(1)<= upperrightcorner(1));
                         noise = obj.dx*obj.geo_noise*(2*rand(1,2)-1);
@@ -212,6 +212,10 @@ classdef sph_scenario < handle
             end
             second_ind=obj.iter-1;
             I=(first_ind:second_ind)';
+        end
+        %%
+        function 
+            
         end
         
         

@@ -1,5 +1,5 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
-% 1d riemann problem
+% 1d isothermal impact - paper of zisis2014
 
 close all; clear; clc;
 ps = sph_scenario();

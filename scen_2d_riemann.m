@@ -12,9 +12,14 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plot_param = 'xvp';
+ps.plot_param = 'xvpd';
 ps.plot_style.p = 'plot3';
-ps.fixaxes.p = [-0.5,0.5];
+ps.plot_style.d = 'trisurf';
+
+
+ps.fixaxes.p = [-0.6,0.6];
+ps.fixaxes.d = [1-1e-2,1+1e-2];
+
 
  %% material parameter
 rho0 = 1;   
