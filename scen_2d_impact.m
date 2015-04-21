@@ -8,7 +8,10 @@ ps.write_data = false;
 ps.read_data  = false;
 ps.input_name = 'test';
 
-ps.dx       = 4e-3;
+%% general parameter
+ps.Ntot    = 500;
+ps.equalmass = false;
+
 ps.dtfactor = 0.5;
 ps.tend     = 0.5;    
 ps.eta      = 1.2;     
@@ -31,15 +34,12 @@ c0   = 2;
 %general
 ps.Omega = [-0.5,0.7;  %x
             -0.5,0.5]; %y  %upper right corner  lower-left ist zero: [0,Omega(1)]x[0,Omega(2)]
-Vp = ps.dx*ps.dx; %volume per particle
 
 %layer1
-lowerleftcorner1 = [0.0,  -0.25];
-upperrightcorner1= [0.05, 0.25];
+omega_geo = [0,0.05;     %x
+             -0.25,0.25];%y 
 v0 = [0,0];
-
-I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0)
+ps.add_geometry(omega_geo, rho0, v0, c0)
 
 
 %   % layer 2
@@ -49,24 +49,25 @@ addproperties(ps, I, Vp, rho0, v0,c0)
 % addproperties(ps, I, Vp, rho0, v0,c0)
 
 %projectile
-lowerleftcorner1 = [-0.05 , -0.005] ;
-upperrightcorner1= [-0.02, 0.005] ;
+omega_geo = [-0.05, -0.02;
+             -0.005,0.005];
 c0 = 2;
 v0 = [2,0];
-
-I = add_rectangle2d(ps,lowerleftcorner1, upperrightcorner1);
-addproperties(ps, I, Vp, rho0, v0,c0)
+ps.add_geometry(omega_geo, rho0, v0, c0)
 
 
 %% -----------------------------------------------------
-
+% generate particles
+ps.create_geometry;
 %% disp data:
 dispdata(ps);
 
 %% create particle class
 obj_particles = sph_particles(ps);
+%obj_particles.showInitial()
 %% start simulation
 start_simulation(obj_particles)
+
 
 
 % t=9.6e-05s (1 iter/sec ,Ncon = 45374)

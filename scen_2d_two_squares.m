@@ -1,6 +1,8 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % two squares with surface tension
 
+error('outdated!')
+
 close all; clear; clc;
 ps = sph_scenario();
 

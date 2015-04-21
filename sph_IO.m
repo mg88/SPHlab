@@ -99,7 +99,8 @@ classdef sph_IO < handle
         %%
         function do (obj, obj_particles)
             %% plotting
-            if (mod(obj_particles.t,obj.plot_dt) < obj_particles.dt) %ToDo: good for variable timestepping?
+            if (mod(obj_particles.t,obj.plot_dt) < obj_particles.dt ...
+                    && ~isempty(obj.plot_param)) %ToDo: good for variable timestepping?
                 plot_data (obj,obj_particles);
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
@@ -240,8 +241,10 @@ classdef sph_IO < handle
                dat_norm = sum(dat.^2,2).^0.5;
                dat_max = max(dat_norm);
             end
-            
-           figure(obj.mfigure);
+           
+           if ~isempty(obj.mfigure)
+                figure(obj.mfigure);
+           end
            nplot = length(obj.plot_param);
            if nplot <=3    
                nxplot = nplot;
@@ -302,7 +305,9 @@ classdef sph_IO < handle
                        plot_scatter(x,dat,mat); 
                        
                        %mark mirror particle
-                       plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
+%                        if ~isempty(obj_particles.bc)
+%                             plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
+%                        end
                        
                    end
                    if ~isempty(limaxes)
@@ -491,10 +496,9 @@ classdef sph_IO < handle
             obj_scen.rhoj = readVariable('rho',filename,time_str);
      
             %mass
-            obj_scen.mj = readVariable('m',filename,time_str);
-            
-            %ToDo: improve this
-            obj_scen.dx  = abs(obj_scen.Xj(1,1)-obj_scen.Xj(2,1));
+            mj = readVariable('m',filename,time_str);
+            obj_scen.Vj = mj ./ obj_scen.rhoj;
+                        
             N = size(obj_scen.Xj,1);
             obj_scen.Iin = (1:N)';
             obj_scen.Imaterial = [1,N]; 

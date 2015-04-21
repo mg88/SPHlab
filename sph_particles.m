@@ -105,7 +105,8 @@ classdef sph_particles < handle
        
         %% constructor
         function obj = sph_particles(obj_scen)
-            obj.IO = sph_IO(obj_scen); %initialize IO and read data if necessary
+            %initialize IO and read data if necessary
+            obj.IO = sph_IO(obj_scen); 
            
             obj.Omega = obj_scen.Omega;
             obj.Xj    = obj_scen.Xj;
@@ -120,12 +121,11 @@ classdef sph_particles < handle
             obj.beta  = obj_scen.beta;
             obj.mu    = obj_scen.mu;
             obj.g_ext = obj_scen.g_ext;                      
-            obj.mj    = obj_scen.mj;    
-                        
+            obj.mj    = obj_scen.Vj.*obj_scen.rhoj;    
+            obj.Vj    = obj_scen.Vj;            
             %initial smoothing length
-            obj.hj       = ones(obj.N,1)*obj_scen.dx * obj_scen.eta; 
-            
-            
+            obj.hj       = obj_scen.Vj.^(1/obj.dim) * obj_scen.eta; 
+                        
             %test
 %             obj.hj(end-2) = obj.hj(end-2)*1; %2            
 %             obj.hj(end-1) = obj.hj(end-1)*1;
@@ -145,8 +145,9 @@ classdef sph_particles < handle
             obj.Ighost      = [];
             obj.Imaterial   = obj_scen.Imaterial;   
             obj.Imaterial_with_boun= obj.Imaterial;
-            obj.bc = obj_scen.bc;     
             
+            obj.bc        = obj_scen.bc;     
+           
             obj.dtfactor  = obj_scen.dtfactor;
             obj.tend      = obj_scen.tend;           
             obj.vj        = obj_scen.vj;
@@ -159,6 +160,7 @@ classdef sph_particles < handle
             obj.drhoj     = zeros(obj.N,1);
             obj.rhoj_half = zeros(obj.N,1);
             obj.vj_half   = zeros(obj.N,obj.dim);
+            obj.pj        = zeros(obj.N,1);
                   
             obj.pij = [];            
             obj.distances_uptodate = false;
@@ -773,7 +775,6 @@ classdef sph_particles < handle
         end
         %%
         function comp_dRho_v_scheme(obj)
-            %todo: differnt dWij (for hj and hi)
             obj.drhoj  = 0*obj.drhoj; 
             qrho_ij = zeros(size(obj.pij,1),1);
             qrho_ji = zeros(size(obj.pij,1),1);
@@ -969,6 +970,7 @@ classdef sph_particles < handle
         function comp_BCdamping(obj) %todo
            for boun = obj.bc
                if ~isempty(boun.damping_area)
+                   error('todo');
 %                    xb = obj.bc.damping_area;
 %                    L  = xb(2)-xb(1);           
 %                    kb = logical((obj.Xj(obj.Iin)>xb(1)) .* (obj.Xj(obj.Iin)<xb(2))); %particels in boundary layer
@@ -1052,10 +1054,14 @@ classdef sph_particles < handle
             
  
             function d = point_to_line(pt, v1, v2)
-                  Np = size(pt,1);
-                  a = [v1 - v2,0];
-                  b = [pt - ones(Np,1)*v2,zeros(Np,1)];
-                  d = sum(cross(ones(Np,1)*a,b).^2,2).^0.5 ./ norm(a);  
+                  if size(pt,2) == 1 %1d
+                      d = abs(pt-v1);
+                  else
+                      Np = size(pt,1);
+                      a = [v1 - v2,0];
+                      b = [pt - ones(Np,1)*v2,zeros(Np,1)];
+                      d = sum(cross(ones(Np,1)*a,b).^2,2).^0.5 ./ norm(a);  
+                  end
             end
             
            % keyboard
@@ -1075,9 +1081,8 @@ classdef sph_particles < handle
             %add boundaries:            
             kk=0;
             for boun = obj.bc
-                if ~isempty(boun.mirrorParticlesj) && isempty(boun.p1) %nr                                                        
-                    kb = boun.mirrorParticlesj;
-                    
+                if strcmp(boun.type,'nr')                                                        
+                    kb = point_to_line(obj.Xj(obj.Iin,:),boun.p1,boun.p2)< obj.hj(obj.Iin)/2; %probably not necessary evey step
 %                     if obj.firststep
 %                          obj.hj(kb)=obj.hj(kb)*2;
 %                          disp ('change h on the boundary!!')
@@ -1129,7 +1134,7 @@ classdef sph_particles < handle
                     % or no adjustment:
 
                     
-                elseif isempty(boun.mirrorParticlesj) && ~isempty(boun.p1)
+                elseif strcmp(boun.type,'noflow')
                     outer_normal = boun.outer_normal;
                     if obj.dim ==1
                         v_factor = -1;
@@ -1212,6 +1217,10 @@ classdef sph_particles < handle
                 keyboard
             end
             %%
+        end
+        %%
+        function showInitial(obj)
+            obj.IO.plot_data(obj);
         end
     end
 end

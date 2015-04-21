@@ -4,7 +4,8 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-ps.dx      = 1e-3;
+%% general parameter
+ps.Ntot    = 1005;
 ps.tend    = 1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
@@ -21,14 +22,11 @@ c0   = 30;
 
 %% domain         
 ps.Omega = [0,1.1]; 
-Vp = ps.dx; %volume per particle
 
 %% active particles
-leftpoint = 0.18;
-rightpoint= 0.88;
+omega_geo=[0.18,0.88];
 v0   = 1;
-I = add_line1d(ps,leftpoint,rightpoint);
-addproperties(ps, I, Vp, rho0, v0,c0)
+ps.add_geometry(omega_geo, rho0, v0, c0)
 
 %% BC:
 p1 = 0.05;
@@ -40,12 +38,14 @@ n=1;
 ps.add_bc_noflow(p1,0,n);
 
 %% -----------------------------------------------------
-
+% generate particles
+ps.create_geometry;
 %% disp data:
 dispdata(ps);
 
 %% create particle class
 obj_particles = sph_particles(ps);
+%showInitial(obj_particles)
 %% start simulation
 start_simulation(obj_particles)
 
