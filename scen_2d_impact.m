@@ -9,7 +9,7 @@ ps.read_data  = false;
 ps.input_name = 'test';
 
 %% general parameter
-ps.Ntot    = 500;
+ps.Ntot    = 5000;
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
@@ -22,7 +22,7 @@ ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plot_param = 'vpd';
+ps.plot_quantity = 'vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.5,0.5];

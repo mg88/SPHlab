@@ -11,7 +11,7 @@ classdef sph_IO < handle
         %plot
         mfigure       %figurehandle
         plot_style
-        plot_param
+        plot_quantity
         plot_dt
         
         fixaxes
@@ -38,7 +38,7 @@ classdef sph_IO < handle
               obj.movie_name    = get_movie_name(obj_scen);
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plot_style    = obj_scen.plot_style;
-              obj.plot_param    = obj_scen.plot_param;
+              obj.plot_quantity = obj_scen.plot_quantity;
                                          
               %read data from file and save in obj_scen
               if obj_scen.read_data
@@ -65,10 +65,10 @@ classdef sph_IO < handle
             %% output
 
             %% plot
-            if ~strcmp(obj.plot_param,'')  %plot only, if plotstlye is specified
+            if ~strcmp(obj.plot_quantity,'')  %plot only, if plotstlye is specified
                  obj.mfigure = figure;
                  set(gca,'DataAspectRatio',[1,1,1]);
-                 if length(obj.plot_param) > 3
+                 if length(obj.plot_quantity) > 3
                         obj.mfigure.Units = 'normalized';
                         figpos=obj.mfigure.Position;
                         figpos(1)=0.1;
@@ -76,7 +76,7 @@ classdef sph_IO < handle
                         figpos(2)=0.1;
                         figpos(4)=0.8;
                         obj.mfigure.Position =figpos;
-                   elseif length(obj.plot_param) > 1 
+                   elseif length(obj.plot_quantity) > 1 
                         obj.mfigure.Units = 'normalized';
                         figpos=obj.mfigure.Position;
                         figpos(1)=0.1;
@@ -100,7 +100,7 @@ classdef sph_IO < handle
         function do (obj, obj_particles)
             %% plotting
             if (mod(obj_particles.t,obj.plot_dt) < obj_particles.dt ...
-                    && ~isempty(obj.plot_param)) %ToDo: good for variable timestepping?
+                    && ~isempty(obj.plot_quantity)) %ToDo: good for variable timestepping?
                 plot_data (obj,obj_particles);
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
@@ -189,9 +189,44 @@ classdef sph_IO < handle
                               sum(ej)];
         end
 
+                %%
+        function [x_eval,dat_eval]=eval(~,obj_p,dat,NN)
+         %  NN=1000; spatial resolution
+           x_eval=(linspace(obj_p.Omega(1)+2*max(obj_p.hj),obj_p.Omega(2)-2*max(obj_p.hj),NN))' ;           
+           cell_of_xj_eval = cell_structure(obj_p,x_eval);
+           cell_of_xj_sph      = cell_structure(obj_p,obj_p.Xj);
+           
+           %search all neigbhours of xj_eval
+           kp=0;   
+           pij_eval = []; %[k_eval, k_sph]
+           for k = 1:NN                
+                  cellshift = lookup_cellshift(obj_p,inf);
+                  i_neighbours = find(ismember(cell_of_xj_sph,cell_of_xj_eval(k)+cellshift)); 
+                  n=length(i_neighbours);
+                  pij_eval(kp+(1:n),:) =[k*ones(n,1),i_neighbours];
+                  kp=kp+n;
+           end
+           %compute radius
+           xij_h_eval = (x_eval(pij_eval(:,1),:)-obj_p.Xj(pij_eval(:,2),:));
+           rij_eval   = sum(xij_h_eval.^2,2).^0.5;
+           %compute kernel
+           r = rij_eval ./ obj_p.hj(pij_eval(:,2));
+           
+           I = r<2;
+           Wij_eval    = zeros(size(r));
+           Wij_eval(I) = obj_p.fw(r(I))./ (obj_p.hj(pij_eval(I,2)).^obj_p.dim);
+           
+           dat =  dat.*obj_p.Vj;
+           dat_eval = zeros(NN,1);
+           %add up everything
+           for k = 1:NN                
+                II = ismember(pij_eval(:,1),k);
+                dat_eval(k) = sum(Wij_eval(II) .* dat(pij_eval(II,2)));
+           end
+        end
         
         %% %%%  Plotting functions %%% %%
-        function plot_data(obj,obj_particles)
+        function plot_data(obj,obj_particles,A_quantities)
             
             function plot_scatter(x,dat,mat)
                colo='gbkrm';
@@ -242,10 +277,16 @@ classdef sph_IO < handle
                dat_max = max(dat_norm);
             end
            
+           if nargin < 3 %use prescribed quantities to plot if not given
+               A_quantities = obj.plot_quantity;
+           end
+            
            if ~isempty(obj.mfigure)
                 figure(obj.mfigure);
+           else
+               figure %open new figure
            end
-           nplot = length(obj.plot_param);
+           nplot = length(A_quantities);
            if nplot <=3    
                nxplot = nplot;
                nyplot =1;
@@ -259,35 +300,36 @@ classdef sph_IO < handle
            mat = obj_particles.Imaterial_with_boun;
            title_additive = ['; t=',num2str(t),'; N= ',num2str(obj_particles.N)];
            clf %clear figure
-           for para = obj.plot_param;
+           
+           for quantity = A_quantities;
                subplot(nyplot,nxplot,iplot);
                hold on;
-               if para == 'x'
+               if quantity == 'x'
                    dat = zeros(obj_particles.N,1);
                    name = 'position';
                    limaxes = obj.fixaxes.x;
                    style   = obj.plot_style.x;
-               elseif para == 'p'
+               elseif quantity == 'p'
                    dat = obj_particles.pj;
                    name = 'pressure';
                    limaxes = obj.fixaxes.p;
                    style   = obj.plot_style.p;
-               elseif para == 'd'
+               elseif quantity == 'd'
                    name = 'density';
                    dat = obj_particles.rhoj;
                    limaxes = obj.fixaxes.d;                   
                    style   = obj.plot_style.d;
-               elseif para == 'v'
+               elseif quantity == 'v'
                    name = 'velocity';
                    dat = obj_particles.vj;
                    limaxes = obj.fixaxes.v;
                    style   = obj.plot_style.v;
-               elseif para == 'f'
+               elseif quantity == 'f'
                    name = 'F-total'; %todo plot components
                    dat = obj_particles.F_total;
                    limaxes = obj.fixaxes.f;
                    style   = obj.plot_style.f;
-               elseif para == 'e'
+               elseif quantity == 'e'
                    name = 'energy';
                    dat = obj_particels.ej;
                    limaxes = obj.fixaxes.e;
@@ -299,11 +341,12 @@ classdef sph_IO < handle
 
                %plot:
                if obj_particles.dim == 1   
-                   if para == 'f'
+                   if quantity == 'f'
                        plot_force(obj_particles);
                    else
                        plot_scatter(x,dat,mat); 
-                       
+                       [x_eval,y_eval] = obj.eval(obj_particles,dat,1000);
+                       plot(x_eval,y_eval)
                        %mark mirror particle
 %                        if ~isempty(obj_particles.bc)
 %                             plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
@@ -314,10 +357,10 @@ classdef sph_IO < handle
                      ylim(limaxes);
                    end                   
                elseif obj_particles.dim == 2
-                   if para == 'x'
+                   if quantity == 'x'
                       plot_scatter(x(:,1),x(:,2),mat); 
                       axis equal
-                   elseif any(para == 'pde') %perssure, density, energy -> scalar
+                   elseif any(quantity == 'pde') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
                             plot_trisurf(x(:,1),x(:,2),dat,2*max(obj_particles.hj));
                             if ~isempty(limaxes)
@@ -351,10 +394,10 @@ classdef sph_IO < handle
                         else
                             error([style, '- plotstyle is not supported']);
                         end
-                   elseif any(para == 'vf') % velocity, forces -> field
+                   elseif any(quantity == 'vf') % velocity, forces -> field
                            dat_max = plot_field(x(obj_particles.Iin,:),dat(obj_particles.Iin,:));
                            axis equal
-                           title_additive= [title_additive,'; max|',para,'|=',num2str(dat_max)];
+                           title_additive= [title_additive,'; max|',quantity,'|=',num2str(dat_max)];
                    else
                        error([obj.plotstyle, '- plotstyle is not supported']);
                    end                   

@@ -14,7 +14,7 @@ ps.scheme  = 'v';
 %IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plot_param = 'p';
+ps.plot_quantity = 'p';
 ps.fixaxes.p = [-1,1];
 
 

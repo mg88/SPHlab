@@ -62,6 +62,7 @@ classdef sph_particles < handle
         %Time
         t
         dt
+        dt_fix
         dtfactor %savety factor for timestepping
         tend                
         %Distances rij=xi-xj= rij * xij_h
@@ -70,6 +71,8 @@ classdef sph_particles < handle
         nIj
         %kernel
         
+        fw   %kernel function handle
+        fdw  %kernel function handle
         Wij
         Wij_hi
         Wij_hj
@@ -148,10 +151,40 @@ classdef sph_particles < handle
             
             obj.bc        = obj_scen.bc;     
            
+            obj.dt        = obj_scen.dt;
+            obj.dt_fix    = obj_scen.dt;
             obj.dtfactor  = obj_scen.dtfactor;
             obj.tend      = obj_scen.tend;           
             obj.vj        = obj_scen.vj;
-                                    
+                      
+            %define kernel:
+            if strcmp(obj.kernel,'Gauss')
+                sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
+                obj.fw  = @(r) sigma(obj.dim) * exp(-r.^2);
+                obj.fdw = @(r) sigma(obj.dim) * -2*r.*exp(-r.^2);
+            elseif strcmp(obj.kernel,'M4')
+                sigma = [2/3; 10/(7*pi); 1/pi];
+                obj.fw = @(r)  sigma(obj.dim)*...
+                    1/4*(2-r).^3   ...
+                     - (1-r).^3 .* (r<1);            
+                obj.fdw = @(r)  sigma(obj.dim)*... 
+                     -3/4*(2-r).^2  ...
+                    + 3*(1-r).^2 .* (r<1);  
+            elseif strcmp(obj.kernel,'Wendland')
+                sigma = [3/4; 7/(4*pi); 21/(16*pi)];
+                obj.fw = @(r)   sigma(obj.dim)*...
+                   (1-r/2).^4 .* (1+2*r);
+                obj.fdw =@(r)  sigma(obj.dim)*... 
+                  -5*r.*(1-r/2).^3;    
+            else
+                error([obj.kernel,' as kernel is not implemented yet']);
+            end
+            if obj.h_const && strcmp(obj.kernel,'Gauss')% if h is constant
+                warning('not the obj-kernel is in use')
+            end
+
+            
+            % some preallocation
             obj.F_int     = zeros(obj.N,obj.dim);
             obj.F_diss    = zeros(obj.N,obj.dim);
             obj.F_diss_art = zeros(obj.N,obj.dim);
@@ -188,7 +221,6 @@ classdef sph_particles < handle
             tic
             ttic = tic;
             obj.IO.initialize()
-            temp = inf;
             while obj.t < obj.tend
                 update_dt(obj);
                 perform_timestep(obj);
@@ -227,14 +259,17 @@ classdef sph_particles < handle
              comp_kernel(obj)             
              comp_forces(obj)
              comp_dRho(obj)                             
+             
              %if ~isempty(obj.damping_area)
              comp_BCdamping(obj)
              %end
+             
              update_half_step(obj)
              update_position(obj)   
              if ~obj.h_const
                  update_h(obj)
              end
+                  
 %              %% disp something
 %              fig=figure(3);
 %              NN = 8;
@@ -249,12 +284,13 @@ classdef sph_particles < handle
         end     
         %%
         function update_dt(obj) 
-            if obj.dim == 1
-                obj.dt = obj.dtfactor * min(obj.hj./(abs(obj.cj + obj.vj)));
-            else
-                obj.dt = obj.dtfactor * min(obj.hj./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
+            if isempty(obj.dt_fix) % only if timestep is not fixed
+                if obj.dim == 1
+                    obj.dt = obj.dtfactor * min(obj.hj./(abs(obj.cj + obj.vj)));
+                else
+                    obj.dt = obj.dtfactor * min(obj.hj./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
+                end
             end
-          %  obj.dt = 1e-5
         end        
         %% neighbour search -  main 
         function search_neighbours(obj)
@@ -272,36 +308,90 @@ classdef sph_particles < handle
            end           
         end        
         %%
+        function cell_of_xj = cell_structure(obj,x) % in which cell is x
+            %% create cell structure
+            NN=size(x,1);
+            if obj.dim == 1
+                cell_of_xj = floor(ones(NN,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (x - ones(NN,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle      
+                if any(cell_of_xj > obj.Nc)  || any(cell_of_xj < 0)                    
+                    warning(' - some particles are not in cell structure anymore! - ')
+                    keyboard
+                end
+           
+            else
+                cell_of_j_2d = floor(ones(NN,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
+                    .* (x - ones(NN,1)*(obj.Omega(:,1))'))...
+                    +1; %in which sector is the particle
+                cell_of_xj = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
+                if any(cell_of_j_2d(1) > obj.Nc(1))...
+                     || any(cell_of_j_2d(1) < 0)...
+                     || any(cell_of_j_2d(2) > obj.Nc(2))...
+                     || any(any(cell_of_j_2d < 0))                    
+                    warning(' - some particles are not in cell structure anymore! - ')
+                    keyboard
+                end
+            end            
+            
+        end
+        %%
+        function Ashift = lookup_cellshift(obj,jshift)
+               if obj.dim==1
+                  switch jshift
+                      case 1
+                          Ashift = 1;
+                      case -1
+                          Ashift = -1;
+                      case inf
+                          Ashift = [-1,0,1];
+                      otherwise
+                            warning('A particel skipped a cell!')
+                            keyboard
+                  end
+
+               else
+                   switch jshift
+                       case 1 %right
+                            Ashift =  1+[obj.Nc(1),0,-obj.Nc(1)];
+                       case -1 %left
+                            Ashift = -1+[obj.Nc(1),0,-obj.Nc(1)];
+                       case obj.Nc(1)%up
+                            Ashift = obj.Nc(1)+[1,0,-1];
+                       case obj.Nc(1)+1 % upper right
+                            Ashift = [-obj.Nc(1)+1,1,1+obj.Nc(1),obj.Nc(1),obj.Nc(1)-1];
+                       case obj.Nc(1)-1 % upper left
+                           Ashift =  [-obj.Nc(1)-1,-1,-1+obj.Nc(1),obj.Nc(1),obj.Nc(1)+1];
+                       case -obj.Nc(1) %down
+                            Ashift = -obj.Nc(1)+[1,0,-1];
+                       case -obj.Nc(1)-1 % down left
+                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,-1,obj.Nc(1)-1];
+                       case -obj.Nc(1)+1 % down right
+                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,+1,obj.Nc(1)+1];
+                       case inf      %all surounding cells
+                            Ashift = [-1-obj.Nc(1), -obj.Nc(1), 1-obj.Nc(1),...
+                                        -1,0,1,...
+                                      -1+obj.Nc(1), obj.Nc(1), 1+obj.Nc(1)];
+                       otherwise
+                            warning('A particel skipped a cell!')
+                            keyboard
+                   end
+               end   
+        end
+        %%        
         function initial_search_neighbours(obj) %upper right and lower left cells are not included
             %% create cell structure
             obj.Nc = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rtcell);
+            % search belonging cell
+            obj.cell_of_j = cell_structure(obj,obj.Xj);
+            
             if obj.dim ==1
-                obj.cell_of_j = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
-                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
-                    +1; %in which sector is the particle
                 cellshift    = 1;
                 Ncell_search = obj.Nc-1;
-                if any(obj.cell_of_j ==obj.Nc) ||... %right
-                   any(obj.cell_of_j == 1 )           %left
-                        warning (' - particels in border cells - algorithm will break - ');
-                end                    
             else
-                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
-                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
-                    +1; %in which sector is the particle
-                obj.cell_of_j = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
                 cellshift    = [1,obj.Nc(1)-1,obj.Nc(1),obj.Nc(1)+1]; %upper-left side
                 Ncell_search = (obj.Nc(1)*obj.Nc(2) - (obj.Nc(1)+1));
-                
-                if any(cell_of_j_2d(:,1)==obj.Nc(1)) || ...%in very right cell
-                   any(cell_of_j_2d(:,2)==obj.Nc(2)) || ...%in very top cell
-                   any(cell_of_j_2d(:,1)==1)         || ...%in very left cell
-                   any(cell_of_j_2d(:,2)==1)               %in very bottom cell
-                    warning (' - particels in border cells - algorithm will break - ');
-                end
-                
             end
-            %obj.Kcells=sparse(c1d,1:obj.N,1);              %matrix includes a 1-entry if a particle (colum) is in a cell (row)            
             
             if any(obj.cell_of_j > Ncell_search)               
                 warning(' - particles not in cell structure! - ')
@@ -360,74 +450,11 @@ classdef sph_particles < handle
             %reset update_neighbours help variables
             obj.obsolete_k_pij = [];
         end    
-        %%
+        %%    
         function update_neighbours (obj) 
-            %
-            function Ashift = lookup_cellshift(obj,jshift)
-               if obj.dim==1
-                  switch jshift
-                      case 1
-                          Ashift = 1;
-                      case -1
-                          Ashift = -1;
-                      case inf
-                          Ashift = [-1,0,1];
-                      otherwise
-                            warning('A particel skipped a cell!')
-                            keyboard
-                  end
-
-               else
-                   switch jshift
-                       case 1 %right
-                            Ashift =  1+[obj.Nc(1),0,-obj.Nc(1)];
-                       case -1 %left
-                            Ashift = -1+[obj.Nc(1),0,-obj.Nc(1)];
-                       case obj.Nc(1)%up
-                            Ashift = obj.Nc(1)+[1,0,-1];
-                       case obj.Nc(1)+1 % upper right
-                            Ashift = [-obj.Nc(1)+1,1,1+obj.Nc(1),obj.Nc(1),obj.Nc(1)-1];
-                       case obj.Nc(1)-1 % upper left
-                           Ashift =  [-obj.Nc(1)-1,-1,-1+obj.Nc(1),obj.Nc(1),obj.Nc(1)+1];
-                       case -obj.Nc(1) %down
-                            Ashift = -obj.Nc(1)+[1,0,-1];
-                       case -obj.Nc(1)-1 % down left
-                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,-1,obj.Nc(1)-1];
-                       case -obj.Nc(1)+1 % down right
-                            Ashift = [-obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,+1,obj.Nc(1)+1];
-                       case inf      %all surounding cells
-                            Ashift = [-1-obj.Nc(1), -obj.Nc(1), 1-obj.Nc(1),...
-                                        -1,0,1,...
-                                      -1+obj.Nc(1), obj.Nc(1), 1+obj.Nc(1)];
-                       otherwise
-                            warning('A particel skipped a cell!')
-                            keyboard
-                   end
-               end   
-            end
-            
-            %% create cell structure
-            if obj.dim == 1
-                cell_of_j_new = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
-                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
-                    +1; %in which sector is the particle      
-                if any(cell_of_j_new > obj.Nc)  || any(cell_of_j_new < 0)                    
-                    warning(' - some particles are not in cell structure anymore! - ')
-                    keyboard
-                end
-           
-            else
-                cell_of_j_2d = floor(ones(obj.N,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
-                    .* (obj.Xj - ones(obj.N,1)*(obj.Omega(:,1))'))...
-                    +1; %in which sector is the particle
-                cell_of_j_new = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
-                if any(cell_of_j_2d(1) > obj.Nc(1) || cell_of_j_2d(2) > obj.Nc(2))...
-                              || any(any(cell_of_j_2d < 0))                    
-                    warning(' - some particles are not in cell structure anymore! - ')
-                    keyboard
-                end
-            end
-                                                        
+ 
+            %cell-structre:
+            cell_of_j_new = cell_structure(obj,obj.Xj);
             
             %%
             np_change = size(cell_of_j_new,1)-size(obj.cell_of_j,1); %
@@ -612,43 +639,22 @@ classdef sph_particles < handle
                 obj.Wij_hj = obj.Wij;
                 obj.dWij_hi = obj.dWij;
                 obj.dWij_hj = obj.dWij;
-            else
-                if strcmp(obj.kernel,'Gauss')
-                    sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
-                    fw  = @(r) exp(-r.^2);
-                    fdw = @(r)  -2*r.*exp(-r.^2);
-                elseif strcmp(obj.kernel,'M4')
-                    sigma = [2/3; 10/(7*pi); 1/pi];
-                    fw = @(r) ...
-                        1/4*(2-r).^3   ...
-                         - (1-r).^3 .* (r<1);            
-                    fdw = @(r) ... 
-                         -3/4*(2-r).^2  ...
-                        + 3*(1-r).^2 .* (r<1);  
-                elseif strcmp(obj.kernel,'Wendland')
-                    sigma = [3/4; 7/(4*pi); 21/(16*pi)];
-                    fw = @(r)  ...
-                       (1-r/2).^4 .* (1+2*r);
-                    fdw =@(r)... 
-                      -5*r.*(1-r/2).^3;    
-                else
-                    error([obj.kernel,' as kernel is not implemented yet']);
-                end
+             else
                 
                 r = [(obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ii);
                      (obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ij)];
  
                 Np = sum(obj.active_k_pij);
-                I = r < 2;
-                w = zeros(2*Np,1);            
-                w(I) = sigma(obj.dim)*fw(r(I));
+                I  = r < 2;
+                w  = zeros(2*Np,1);            
+                w(I) = obj.fw(r(I));
 
                 obj.Wij_hi = w(1:Np)./ (obj.hj(obj.Ii).^obj.dim);
                 obj.Wij_hj = w(Np+1:end)./ (obj.hj(obj.Ij).^obj.dim);
                 obj.Wij    = 0.5*(obj.Wij_hi + obj.Wij_hj);
 
                 dw = zeros(2*Np,1);
-                dw(I,:)   = sigma(obj.dim)*fdw(r(I,:));
+                dw(I) = obj.fdw(r(I,:));
 
                 obj.dWij_hi = 1./obj.hj(obj.Ii).^(obj.dim+1) .* dw(1:Np);
                 obj.dWij_hj = 1./obj.hj(obj.Ij).^(obj.dim+1) .* dw(Np+1:end);
@@ -1080,9 +1086,13 @@ classdef sph_particles < handle
             
             %add boundaries:            
             kk=0;
-            for boun = obj.bc
-                if strcmp(boun.type,'nr')                                                        
-                    kb = point_to_line(obj.Xj(obj.Iin,:),boun.p1,boun.p2)< obj.hj(obj.Iin)/2; %probably not necessary evey step
+            for i = 1:size(obj.bc,2)
+                boun = obj.bc(i);
+                if strcmp(boun.type,'nr')  
+                    if obj.firststep %search for the boundary particles
+                        obj.bc(i).kb = point_to_line(obj.Xj(obj.Iin,:),boun.p1,boun.p2)< obj.hj(obj.Iin)/2;
+                    end
+                    kb = obj.bc(i).kb;
 %                     if obj.firststep
 %                          obj.hj(kb)=obj.hj(kb)*2;
 %                          disp ('change h on the boundary!!')
@@ -1090,7 +1100,7 @@ classdef sph_particles < handle
 %                     
                     ki = find(kb==0);  %ki = obj.Iin;
                     outer_normal = boun.outer_normal;
-                    
+
                     if obj.dim == 1
                         v_factor = -1;
                     else
@@ -1120,18 +1130,18 @@ classdef sph_particles < handle
                             mV_factor_max = 1.1;
                             dmax = max(d(Imirror_local));
                             drel = (dmax - d(Imirror_local))/dmax;
-                            mV_factor = (1-drel)*mV_factor_min +...
-                                         drel *mV_factor_max;
+                            mV_factor = (1-drel)* mV_factor_min +...
+                                         drel   * mV_factor_max;
                         else
                             mV_factor_min = 2;
                             mV_factor_max = 0.2;
                             dmax = max(d(Imirror_local));
                             drel = (dmax - d(Imirror_local))/dmax;
-                            mV_factor = (1-drel)*mV_factor_min +...
-                                         drel *mV_factor_max;
+                            mV_factor = (1-drel) * mV_factor_min +...
+                                         drel    * mV_factor_max;
                         end
                      end
-                    % or no adjustment:
+                    % or no adjustment
 
                     
                 elseif strcmp(boun.type,'noflow')
@@ -1170,9 +1180,9 @@ classdef sph_particles < handle
                     obj.Xj (obj.N+(1:NN),:) = ...
                              obj.Xj(Imirror,:) + 2*d(Imirror_local)*outer_normal; 
 
-                    obj.vj (obj.N+(1:NN),:) = ...
+                    obj.vj (obj.N+(1:NN),:) = ...    2*obj.vj(kb)-...
                               obj.vj(Imirror,:).*(ones(NN,1)*v_factor);  %probably only valid in 1D!
-                    obj.pj (obj.N+(1:NN),:) = ...
+                    obj.pj (obj.N+(1:NN),:) = ...                            
                               obj.pj(Imirror).*p_factor; 
 
                     %to examine:
@@ -1184,12 +1194,14 @@ classdef sph_particles < handle
                     obj.Vj (obj.N+(1:NN),:) = ...
                               obj.Vj(Imirror).*mV_factor;
 
-                    obj.rhoj (obj.N+(1:NN),:) = ...
-                                obj.rhoj(Imirror);
                     obj.hj (obj.N+(1:NN),:) = ...
                               obj.hj(Imirror);
                     obj.cj (obj.N+(1:NN),:) = ...
                               obj.cj(Imirror); 
+                    obj.rhoj (obj.N+(1:NN),:) = ...
+                              obj.rhoj(Imirror);
+                             % correct density
+                             % obj.pj (obj.N+(1:NN))./(obj.cj (obj.N+(1:NN)).^2) + 1;
 
                     obj.N = size(obj.Xj,1);
 
@@ -1217,10 +1229,7 @@ classdef sph_particles < handle
                 keyboard
             end
             %%
-        end
-        %%
-        function showInitial(obj)
-            obj.IO.plot_data(obj);
-        end
+        end       
+
     end
 end

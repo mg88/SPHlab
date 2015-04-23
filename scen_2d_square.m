@@ -15,7 +15,7 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plot_param = 'xpd';
+ps.plot_quantity = 'xpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.1,0.1];

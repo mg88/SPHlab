@@ -13,7 +13,7 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plot_param = 'xvpd';
+ps.plot_quantity = 'xvpd';
 ps.plot_style.p = 'plot3';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.6,0.6];

@@ -5,7 +5,8 @@ classdef sph_scenario < handle
     properties
 
         %% simulation parameter
-        dtfactor    % savetyfactor for timestepping
+        dtfactor    % savetyfactor for timestepping        
+        dt          % timestep (if empty, use CFL)
         tend        % Simulation time
         eta         % h=eta*dx
         eta2        % eta2*h is the cutoff radius 
@@ -59,7 +60,7 @@ classdef sph_scenario < handle
         plot_dt         % plotting timestep
         plot_style       % 1D;x: scatter  
                          % 2D - scalar: trisurf | patches; field: quiver
-        plot_param       %which parameter shall be plottet v-velocity, x-position, p-pressure, d-density, f-forces
+        plot_quantity    %which quantity shall be plottet v-velocity, x-position, p-pressure, d-density, f-forces
         fixaxes         %struct to define the axes           
         %movie settings                        
         save_as_movie
@@ -74,13 +75,14 @@ classdef sph_scenario < handle
         % Constructor
         function obj = sph_scenario()
            % some standard parameter 
+           
            obj.kernel = 'Wendland'; 
            obj.scheme = 'm';
            obj.equalmass = false;
-           obj.h_const = false;           
+           obj.h_const   = false;           
+           obj.dt        = [];
            obj.dtfactor  = 0.5;
            
-
            obj.beta = 0; %material dependent!
            obj.mu   = 0;
                    
@@ -92,7 +94,7 @@ classdef sph_scenario < handle
            %IO
            obj.save_as_movie = false;
            obj.movie_name = 'out';
-           obj.plot_param = 'xp';
+           obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
                                    'p','patches',...
                                    'd','patches',...

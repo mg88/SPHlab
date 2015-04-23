@@ -5,7 +5,7 @@ close all; clear; clc;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 1005;
+ps.Ntot    = 105;
 ps.tend    = 1;    
 ps.eta     = 1.2;     
 ps.eta2    = 2;  
@@ -13,7 +13,7 @@ ps.eta2    = 2;
 %IO
 ps.plot_dt = 6e-2;   
 ps.save_as_movie = false;
-ps.plot_param = 'vd';
+ps.plot_quantity = 'vd';
 
  %% material parameter
 rho0 = 1;     %relativ density
