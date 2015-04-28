@@ -3,6 +3,7 @@
 % - check against c++ code
 % - right now: dh/drho = 0
 % - regulariseInitialDensity
+% - nr-bc: what happens when particles move over this line?
 
 classdef sph_particles < handle
 %% SPH for HVI  - Markus Ganser - TU/e - 2015
@@ -85,11 +86,12 @@ classdef sph_particles < handle
         hj 
         h_const  %boolean
         kernel    % M4 | gauss
+        kernel_cutoff
         %Domain
         Omega
         cell_of_j
         Nc 
-        eta2_cutoff        % cut-off-factor
+        cell_cutoff        % cut-off-factor
         Rtcell             % size of the cells (first cut-off)
         obsolete_k_pij;
         % boundary condition        
@@ -140,9 +142,9 @@ classdef sph_particles < handle
 
             
             
-            obj.h_const  = obj_scen.h_const;
-            obj.kernel   = obj_scen.kernel;
-            obj.eta2_cutoff = obj_scen.eta2;
+            obj.h_const       = obj_scen.h_const;
+            obj.kernel        = obj_scen.kernel;
+            obj.kernel_cutoff = obj_scen.kernel_cutoff;
         
             obj.Iin         = obj_scen.Iin;
             obj.Ighost      = [];
@@ -162,14 +164,24 @@ classdef sph_particles < handle
                 sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
                 obj.fw  = @(r) sigma(obj.dim) * exp(-r.^2);
                 obj.fdw = @(r) sigma(obj.dim) * -2*r.*exp(-r.^2);
-            elseif strcmp(obj.kernel,'M4')
+            elseif strcmp(obj.kernel,'M3')
                 sigma = [2/3; 10/(7*pi); 1/pi];
-                obj.fw = @(r)  sigma(obj.dim)*...
+                obj.fw = @(r)  sigma(obj.dim)* (...
                     1/4*(2-r).^3   ...
-                     - (1-r).^3 .* (r<1);            
-                obj.fdw = @(r)  sigma(obj.dim)*... 
+                      -( (1-r).^3 .* (r<1)));            
+                obj.fdw = @(r)  sigma(obj.dim)* (... 
                      -3/4*(2-r).^2  ...
-                    + 3*(1-r).^2 .* (r<1);  
+                    + 3*(1-r).^2 .* (r<1));  
+            elseif strcmp(obj.kernel,'M4')
+                sigma = [1/24, 96/(1199*pi), 1/(20*pi)];
+                obj.fw = @(r)  sigma(obj.dim)* (...
+                    (5/2-r).^4 ...
+                    -5*(3/2-r).^4 .* (r<1.5) ...
+                    +10*(0.5-r).^4 .*(r<0.5));
+                obj.fdw = @(r)  sigma(obj.dim)* -4* (... 
+                    (5/2-r).^3 ...
+                   -5 *(3/2-r).^3 .* (r<1.5) ...
+                   +10*(0.5-r).^3 .* (r<0.5));                        
             elseif strcmp(obj.kernel,'Wendland')
                 sigma = [3/4; 7/(4*pi); 21/(16*pi)];
                 obj.fw = @(r)   sigma(obj.dim)*...
@@ -177,12 +189,13 @@ classdef sph_particles < handle
                 obj.fdw =@(r)  sigma(obj.dim)*... 
                   -5*r.*(1-r/2).^3;    
             else
-                error([obj.kernel,' as kernel is not implemented yet']);
-            end
-            if obj.h_const && strcmp(obj.kernel,'Gauss')% if h is constant
-                warning('not the obj-kernel is in use')
+                error([obj.kernel,' is as kernel not implemented yet']);
             end
 
+            %possible? why?
+            if obj.h_const && strcmp(obj.kernel,'Gauss')
+                warning('It is not the obj-kernel in use')
+            end
             
             % some preallocation
             obj.F_int     = zeros(obj.N,obj.dim);
@@ -294,13 +307,11 @@ classdef sph_particles < handle
         end        
         %% neighbour search -  main 
         function search_neighbours(obj)
-           cut_off_radius = obj.eta2_cutoff* max(obj.hj);
            if obj.firststep
-               obj.Rtcell = cut_off_radius * 1.1; %savety-factor
                disp('create initial cell-structure');               
                initial_search_neighbours(obj);
-           elseif (obj.Rtcell < cut_off_radius) %ToDo: make cells smaller
-               obj.Rtcell = cut_off_radius * 1.1; %savety-factor
+           elseif (obj.Rtcell < obj.kernel_cutoff * max(obj.hj)) %ToDo: make cells smaller
+               obj.Nc = [];  %set cell-division-structure to obsolete
                disp('create new cell-structure');
                initial_search_neighbours(obj);
            else
@@ -309,13 +320,21 @@ classdef sph_particles < handle
         end        
         %%
         function cell_of_xj = cell_structure(obj,x) % in which cell is x
-            %% create cell structure
+            %% set cell-division-structure
+            if isempty(obj.Nc) %only if old cell-division-structure is obsolete
+                 %make cell-division a bit bigger (in order to capture some
+                 %derivation in h without creating a new cell-division
+                 %structre)
+                obj.Rtcell     = obj.kernel_cutoff * max(obj.hj)  * 1.1;
+                obj.Nc         = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rtcell);
+            end
+            % search belonging cell
             NN=size(x,1);
             if obj.dim == 1
                 cell_of_xj = floor(ones(NN,1)*(obj.Nc ./ (obj.Omega(:,2)-obj.Omega(:,1)))'...
                     .* (x - ones(NN,1)*(obj.Omega(:,1))'))...
                     +1; %in which sector is the particle      
-                if any(cell_of_xj > obj.Nc)  || any(cell_of_xj < 0)                    
+                if any(cell_of_xj > obj.Nc)  || any(cell_of_xj <= 0)                    
                     warning(' - some particles are not in cell structure anymore! - ')
                     keyboard
                 end
@@ -326,9 +345,9 @@ classdef sph_particles < handle
                     +1; %in which sector is the particle
                 cell_of_xj = cell_of_j_2d(:,1) + (cell_of_j_2d(:,2)-1).*(obj.Nc(1));    %convert to 1d counting
                 if any(cell_of_j_2d(1) > obj.Nc(1))...
-                     || any(cell_of_j_2d(1) < 0)...
+                     || any(cell_of_j_2d(1) <= 0)...
                      || any(cell_of_j_2d(2) > obj.Nc(2))...
-                     || any(any(cell_of_j_2d < 0))                    
+                     || any(any(cell_of_j_2d <= 0))                    
                     warning(' - some particles are not in cell structure anymore! - ')
                     keyboard
                 end
@@ -380,9 +399,7 @@ classdef sph_particles < handle
         end
         %%        
         function initial_search_neighbours(obj) %upper right and lower left cells are not included
-            %% create cell structure
-            obj.Nc = floor((obj.Omega(:,2)-obj.Omega(:,1))/obj.Rtcell);
-            % search belonging cell
+            %% create cell structure            
             obj.cell_of_j = cell_structure(obj,obj.Xj);
             
             if obj.dim ==1
@@ -600,7 +617,7 @@ classdef sph_particles < handle
             obj.xij_h = obj.xij_h./(obj.rij*ones(1,obj.dim));  
             
             % flag particle which are within the cutoff radius           ^       
-            temp = (obj.rij < obj.eta2_cutoff *...
+            temp = (obj.rij < obj.kernel_cutoff *...
                       max(obj.hj(obj.pij(:,1)),obj.hj(obj.pij(:,2))))...
                    .*(obj.rij > 0);
             obj.active_k_pij = logical(temp);
@@ -645,7 +662,7 @@ classdef sph_particles < handle
                      (obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ij)];
  
                 Np = sum(obj.active_k_pij);
-                I  = r < 2;
+                I  = r < obj.kernel_cutoff;
                 w  = zeros(2*Np,1);            
                 w(I) = obj.fw(r(I));
 
@@ -804,7 +821,7 @@ classdef sph_particles < handle
         end
         %%
         function comp_dRho_diss(obj) % Dissipative mass flux (Zizis2014)
-            alpha_mass = 0.3;  %super sensitive!
+            alpha_mass = 0.3;%0.3;  %super sensitive!
             obj.drhoj_diss  = 0*obj.drhoj_diss; 
             qrho_ij_diss = zeros(size(obj.pij,1),1);
             qrho_ji_diss = zeros(size(obj.pij,1),1);
@@ -932,7 +949,7 @@ classdef sph_particles < handle
         function comp_Fdiss_art(obj)      %dissipative velocity - Iason %h constant!
             %compute the flux
             qF_diss_art_ij = zeros(size(obj.pij,1),obj.dim);
-            alpha_diss = 1;
+            alpha_diss = 1;%1;
             beta_diss  = 2;
             vijxijh = sum(...
                    ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
@@ -1093,11 +1110,13 @@ classdef sph_particles < handle
                         obj.bc(i).kb = point_to_line(obj.Xj(obj.Iin,:),boun.p1,boun.p2)< obj.hj(obj.Iin)/2;
                     end
                     kb = obj.bc(i).kb;
+                    
+%                     % tweak 
 %                     if obj.firststep
-%                          obj.hj(kb)=obj.hj(kb)*2;
+%                          obj.hj(kb)=obj.hj(kb)*1;
 %                          disp ('change h on the boundary!!')
 %                     end
-%                     
+                    
                     ki = find(kb==0);  %ki = obj.Iin;
                     outer_normal = boun.outer_normal;
 
@@ -1115,7 +1134,7 @@ classdef sph_particles < handle
                                             obj.Xj(obj.Iin(kb),:),...
                                             outer_normal);
 
-                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin)); %%
+                    Imirror_local = d <  obj.kernel_cutoff * max(obj.hj(obj.Iin)); %%
                     Imirror       = obj.Iin(ki(Imirror_local));
                     
                     
@@ -1167,14 +1186,14 @@ classdef sph_particles < handle
                     else
                          d = point_to_line(pXj,boun.p1,boun.p2);
                     end
-                    Imirror_local = d <  obj.eta2_cutoff * max(obj.hj(obj.Iin));% * 12;
+                    Imirror_local = d <  obj.kernel_cutoff * max(obj.hj(obj.Iin));% * 12;
                     Imirror       = obj.Iin(Imirror_local);
                 else
                     error('no such boundary condition possible');
                 end
                 NN = size(Imirror,1);                   
-                obj.Ighost(kk+(1:NN),:) = Imirror;
-                
+                obj.Ighost(kk+(1:NN),:) = (obj.N+(1:NN))';%Imirror;
+                                
                 %copy data
                 if ~isempty(Imirror)
                     obj.Xj (obj.N+(1:NN),:) = ...

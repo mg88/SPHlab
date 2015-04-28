@@ -5,46 +5,46 @@ close all; clear; clc;
 ps = sph_scenario();
 %% general parameter
 ps.Ntot    = 1005;
-ps.tend    = 0.1;   
+ps.tend    = 1.3;   
+%ps.dtfactor  =0.1;
 
 ps.eta     = 1.2;     
-ps.eta2    = 2;  
+ps.set_kernel('Wendland');
 
 %IO
-ps.plot_dt = 1e-3;   
+ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.plot_quantity = 'xvpd';
 ps.plot_style.p = 'plot3';
 ps.plot_style.d = 'trisurf';
-ps.fixaxes.p = [-0.6,0.6];
-ps.fixaxes.d = [1-1e-2,1+1e-2];
+ps.fixaxes.p = [-0.005,0.005];
+%ps.fixaxes.d = [1-1e-2,1+1e-2];
 
 
  %% material parameter
 rho0 = 1;   
-c0   = 10;
+c0   = 1;
 
 %% domain         
-ps.Omega = [0.1,0.6  ;  %x
+ps.Omega = [-0.1,1  ;  %x
             0,0.5]; %y
   
 %% active particles
-l  = 0.2;
-r  = 0.5;
+l  = 0;
+interface=0.3;
+r  = 0.7;
 h1 = 0.1;
 h2 = 0.4;
-interface=0.35;
 %left
 omega_geo = [l,interface; %x
              h1,h2]; %y
-v0    = [0.1,0];
+v0    = [0.004,0];
 ps.add_geometry(omega_geo, rho0, v0, c0)
              
 % right
 omega_geo = [interface,r; %x
              h1,h2]; %y
 v0    = [0,0];
-rho0 = 1;
 ps.add_geometry(omega_geo, rho0, v0, c0)
    
 %% set BC

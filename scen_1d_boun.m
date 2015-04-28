@@ -8,7 +8,6 @@ ps = sph_scenario();
 ps.Ntot    = 105;
 ps.tend    = 1;    
 ps.eta     = 1.2;     
-ps.eta2    = 2;  
 
 %IO
 ps.plot_dt = 6e-2;   

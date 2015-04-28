@@ -11,19 +11,20 @@ ps.input_name = 'test';
 ps.Ntot      = 100;
 ps.equalmass = false;
 %ps.dt        = 1e-3;
-ps.tend      = 1.75; 
+%ps.dtfactor  =0.01;
+ps.tend      = 1.3; 
 
 ps.eta     = 1.2;     
-ps.eta2    = 2;
-ps.kernel  = 'Wendland';
-ps.scheme  = 'm';
+ps.set_kernel('Wendland');
+
+ps.scheme  = 'v';
 ps.h_const = false;
 
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = 'pv';
+ps.plot_quantity = 'dvp';
 ps.fixaxes.v = [-0.003, 0.005];
 ps.fixaxes.p = [-0.005 , 0.005];
 %ps.fixaxes.d = [1-1e-2 ,1+1e-2 ];
@@ -34,12 +35,12 @@ rho0 = 1;     % density
 c0   = 1.0; 
 
 %% domain         
-ps.Omega = [-0.2, 1.2]; 
+ps.Omega = [-0.1, 0.8]; 
 
 %% active particles
 
 %left
-omega_geo = [0,0.1]; %x
+omega_geo = [0,0.3]; %x
 v0   = 0.004;
 ps.add_geometry(omega_geo, rho0, v0, c0)
 
@@ -56,7 +57,7 @@ ps.add_geometry(omega_geo, rho0, v0, c0)
 
 %% set BC
 
-p1 = 0.7;
+p1 = omega_geo(2);
 outer_normal = 1;
 ps.add_bc_nr(p1,0,outer_normal);
 %ps.bc(1).damping_area=[0.4;0.5];
@@ -69,6 +70,9 @@ dispdata(ps);
 
 %% create particle class
 obj_particles = sph_particles(ps);
+
+%obj_particles.IO.plot_data(obj_particles,'dpv');
+
 %% start simulation
 start_simulation(obj_particles)
 

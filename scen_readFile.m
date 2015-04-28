@@ -9,13 +9,12 @@ ps.input_name = 'in-hvi.h5';
 
 ps.write_data = false;
 
-ps.kernel = 'M4';
+ps.set_kernel('Wendland');
 ps.Omega = [ -0.1, 0.4;
             -0.3, 0.3];
 %    --scheme n \
 %    --weakly-compressible 0 \
     ps.eta  = 1.2;
-    ps.eta2  = 2;
 
     %--alphamom 10 \
     %--alphamass 0.5 \

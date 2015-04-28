@@ -2,6 +2,9 @@ classdef sph_IO < handle
     %IO classes for the sph-simulation tool
     
     properties
+        % evaluation points
+        x_eval
+        dx_eval
         %input
         
         %output       
@@ -45,6 +48,10 @@ classdef sph_IO < handle
                  obj.read_hdf5(obj_scen);
               end    
               
+              % gridpoints to evaluate
+              Nscan = obj_scen.Ntot;
+              [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,Nscan);
+                            
               %output
               obj.write_data  = obj_scen.write_data;
               obj.output_name = obj_scen.output_name;
@@ -188,21 +195,47 @@ classdef sph_IO < handle
             obj.con_energy =[obj.con_energy;
                               sum(ej)];
         end
+        %%
+        function [dat_eval] = eval_ss (obj,obj_p, data_name)           
+            %define evaluation points for supersampling
+           Noffset = 4;
+           Neval   = size(obj.x_eval,1);
+           
+           Noff_right = floor(Noffset/2);
+           if mod(Noffset,2)==0
+              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Noffset);
+               offset = [-xNoff_right(end:-1:1),xNoff_right];
+           else %insert 0 for odd amount of offset points
+              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Noffset+1);
+               offset = [-xNoff_right(end:-1:1),0,xNoff_right];
+           end
+           temp =  (obj.x_eval*ones(1,Noffset)) +...
+                   (ones(Neval,1) * offset);
+           
+           x_eval_ss  =  reshape (temp, [Noffset*Neval,1]);                       
+           %% evaluate data:
+           dat_eval_ss = obj.eval (obj_p, data_name, x_eval_ss);
+           %% supersampling with Box-Filter:
+           temp = reshape(dat_eval_ss, [Neval,Noffset]);           
 
-                %%
-        function [x_eval,dat_eval]=eval(~,obj_p,dat,NN)
-         %  NN=1000; spatial resolution
-           x_eval=(linspace(obj_p.Omega(1)+2*max(obj_p.hj),obj_p.Omega(2)-2*max(obj_p.hj),NN))' ;           
+           dat_eval = mean(temp,2);
+        end
+        
+        %%
+        function dat_eval = eval(~,obj_p,data_name,x_eval)           
+           %cells of the scanning points
            cell_of_xj_eval = cell_structure(obj_p,x_eval);
-           cell_of_xj_sph      = cell_structure(obj_p,obj_p.Xj);
+           %cells of the particles
+           cell_of_xj_sph  = cell_structure(obj_p,obj_p.Xj);
            
            %search all neigbhours of xj_eval
            kp=0;   
            pij_eval = []; %[k_eval, k_sph]
+           NN = size(x_eval,1);
            for k = 1:NN                
                   cellshift = lookup_cellshift(obj_p,inf);
                   i_neighbours = find(ismember(cell_of_xj_sph,cell_of_xj_eval(k)+cellshift)); 
-                  n=length(i_neighbours);
+                  n = length(i_neighbours);
                   pij_eval(kp+(1:n),:) =[k*ones(n,1),i_neighbours];
                   kp=kp+n;
            end
@@ -212,22 +245,29 @@ classdef sph_IO < handle
            %compute kernel
            r = rij_eval ./ obj_p.hj(pij_eval(:,2));
            
-           I = r<2;
+           I = r < obj_p.kernel_cutoff; 
            Wij_eval    = zeros(size(r));
            Wij_eval(I) = obj_p.fw(r(I))./ (obj_p.hj(pij_eval(I,2)).^obj_p.dim);
            
-           dat =  dat.*obj_p.Vj;
-           dat_eval = zeros(NN,1);
+           %work with data
+           if strcmp(data_name,'')
+               dat = zeros(obj_p.N,1); %e.g. to plot the position
+           else
+               dat = obj_p.(data_name);
+           end
+           dat =  dat.*(obj_p.Vj * ones(1,size(dat,2)));
+           dat_eval = zeros(NN,obj_p.dim);
            %add up everything
            for k = 1:NN                
                 II = ismember(pij_eval(:,1),k);
-                dat_eval(k) = sum(Wij_eval(II) .* dat(pij_eval(II,2)));
+                dat_eval(k,:) = sum((Wij_eval(II)* ones(1,size(dat,2))...
+                                    .* dat(pij_eval(II,2),:)),...
+                                    1); %sum all rows
            end
         end
         
         %% %%%  Plotting functions %%% %%
-        function plot_data(obj,obj_particles,A_quantities)
-            
+        function plot_data(obj,obj_p,A_quantities)
             function plot_scatter(x,dat,mat)
                colo='gbkrm';
                %each material gets his own color
@@ -295,43 +335,43 @@ classdef sph_IO < handle
                nyplot = 2;
            end
            iplot=1;
-           x   = obj_particles.Xj;
-           t   = obj_particles.t;
-           mat = obj_particles.Imaterial_with_boun;
-           title_additive = ['; t=',num2str(t),'; N= ',num2str(obj_particles.N)];
+           x   = obj_p.Xj;
+           t   = obj_p.t;
+           mat = obj_p.Imaterial_with_boun;
+           title_additive = ['; t=',num2str(t),'; N= ',num2str(obj_p.N)];
            clf %clear figure
            
            for quantity = A_quantities;
                subplot(nyplot,nxplot,iplot);
                hold on;
                if quantity == 'x'
-                   dat = zeros(obj_particles.N,1);
+                   dat_name = '';
                    name = 'position';
                    limaxes = obj.fixaxes.x;
                    style   = obj.plot_style.x;
                elseif quantity == 'p'
-                   dat = obj_particles.pj;
+                   dat_name = 'pj';
                    name = 'pressure';
                    limaxes = obj.fixaxes.p;
                    style   = obj.plot_style.p;
                elseif quantity == 'd'
                    name = 'density';
-                   dat = obj_particles.rhoj;
+                   dat_name = 'rhoj';
                    limaxes = obj.fixaxes.d;                   
                    style   = obj.plot_style.d;
                elseif quantity == 'v'
                    name = 'velocity';
-                   dat = obj_particles.vj;
+                   dat_name = 'vj';
                    limaxes = obj.fixaxes.v;
                    style   = obj.plot_style.v;
                elseif quantity == 'f'
                    name = 'F-total'; %todo plot components
-                   dat = obj_particles.F_total;
+                   dat_name = 'F_total';
                    limaxes = obj.fixaxes.f;
                    style   = obj.plot_style.f;
                elseif quantity == 'e'
                    name = 'energy';
-                   dat = obj_particels.ej;
+                   dat_name = 'ej';
                    limaxes = obj.fixaxes.e;
                    style   = obj.plot_style.e;
                else
@@ -339,14 +379,21 @@ classdef sph_IO < handle
                    keyboard
                end
 
+               
                %plot:
-               if obj_particles.dim == 1   
+               if obj_p.dim == 1   
                    if quantity == 'f'
-                       plot_force(obj_particles);
-                   else
-                       plot_scatter(x,dat,mat); 
-                       [x_eval,y_eval] = obj.eval(obj_particles,dat,1000);
-                       plot(x_eval,y_eval)
+                       plot_force(obj_p);
+                   else                     
+                       %evaluate 
+                       dat_eval = obj.eval_ss(obj_p,dat_name);
+               
+                       plot(obj.x_eval,dat_eval,'x-')
+                       legend('smoothed values');
+                       
+                       %plot particles
+                       plot_scatter(x,obj_p.(dat_name),mat); 
+ 
                        %mark mirror particle
 %                        if ~isempty(obj_particles.bc)
 %                             plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
@@ -356,13 +403,13 @@ classdef sph_IO < handle
                    if ~isempty(limaxes)
                      ylim(limaxes);
                    end                   
-               elseif obj_particles.dim == 2
+               elseif obj_p.dim == 2
                    if quantity == 'x'
                       plot_scatter(x(:,1),x(:,2),mat); 
                       axis equal
                    elseif any(quantity == 'pde') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
-                            plot_trisurf(x(:,1),x(:,2),dat,2*max(obj_particles.hj));
+                            plot_trisurf(x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -376,8 +423,8 @@ classdef sph_IO < handle
                             colormap jet
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
-                            sizeOfCirlce = obj_particles.hj;
-                            plot_patches(x(:,1),x(:,2),dat,sizeOfCirlce,opacity)                 
+                            sizeOfCirlce = obj_p.hj;
+                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity)                 
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -385,7 +432,7 @@ classdef sph_IO < handle
                             colormap jet
                             axis equal
                         elseif strcmp (style,'plot3')
-                            plot3(x(:,1),x(:,2),dat,'o');
+                            plot3(x(:,1),x(:,2),obj_p.(dat_name),'o');
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                                  zlim(limaxes)
@@ -395,7 +442,7 @@ classdef sph_IO < handle
                             error([style, '- plotstyle is not supported']);
                         end
                    elseif any(quantity == 'vf') % velocity, forces -> field
-                           dat_max = plot_field(x(obj_particles.Iin,:),dat(obj_particles.Iin,:));
+                           dat_max = plot_field(x(obj_p.Iin,:),obj_p.(dat_name)(obj_p.Iin,:));
                            axis equal
                            title_additive= [title_additive,'; max|',quantity,'|=',num2str(dat_max)];
                    else
@@ -405,7 +452,7 @@ classdef sph_IO < handle
                title([name,title_additive]);
                title_additive='';
                %% plot additional info
-               plot_geometry(obj,obj_particles);
+               plot_geometry(obj,obj_p);
                iplot = iplot+1;
                hold off;
            end

@@ -11,8 +11,8 @@ ps.equalmass = true;
 ps.tend    = 0.4;    
  
 ps.eta     = 1.2;     
-ps.eta2    = 2;
-ps.kernel  = 'Wendland';
+ps.set_kernel('Wendland');
+
 ps.scheme   = 'v';
 ps.h_const  = false;
 

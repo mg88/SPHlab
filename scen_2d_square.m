@@ -10,7 +10,6 @@ ps.dtfactor= 0.4;
 
 ps.tend    = 0.1;    
 ps.eta     = 1.2;     
-ps.eta2    = 2;  
 
 %IO
 ps.plot_dt = 1e-3;   

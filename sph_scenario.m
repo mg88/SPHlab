@@ -5,12 +5,13 @@ classdef sph_scenario < handle
     properties
 
         %% simulation parameter
-        dtfactor    % savetyfactor for timestepping        
+        dtfactor    % savetyfactor for timestepping with CFL      
         dt          % timestep (if empty, use CFL)
         tend        % Simulation time
         eta         % h=eta*dx
-        eta2        % eta2*h is the cutoff radius 
         kernel      % M4 | Gauss | Wendland
+        kernel_cutoff  % r/h<=kernel_cutoff
+
         scheme      % m | v
         h_const     % is h constant (true) or dependent on density (false) 
         %% geometry
@@ -77,6 +78,7 @@ classdef sph_scenario < handle
            % some standard parameter 
            
            obj.kernel = 'Wendland'; 
+           obj.kernel_cutoff = 2;
            obj.scheme = 'm';
            obj.equalmass = false;
            obj.h_const   = false;           
@@ -115,7 +117,8 @@ classdef sph_scenario < handle
            obj.iter  = 1; 
            obj.iter_boun = 1;
            obj.iter_geo = 1;
-        end               
+        end   
+        
         %%
         function name = get_movie_name(obj)
             movie_dir='movies/'; %ToDo: anders machen
@@ -125,6 +128,21 @@ classdef sph_scenario < handle
         %%  
         function dispdata(obj)
            disp(obj)             
+        end
+        %%
+        function set_kernel(obj,kernel)
+           obj.kernel = kernel;
+           if strcmp(kernel, 'Wendland')
+               obj.kernel_cutoff = 2;
+           elseif strcmp(kernel, 'M3') %after violeau (M4 in Price)
+               obj.kernel_cutoff = 2;
+           elseif strcmp(kernel, 'M4') %after violeau (M4 in Price)
+               obj.kernel_cutoff = 2.5;
+           elseif strcmp(kernel, 'Gauss')
+               obj.kernel_cutoff = 2;
+           else
+               error('Kernel not supported!');
+           end
         end
         %%
         function add_geometry(obj,omega_geo, rho0, v0, c0,Nfactor)
@@ -204,48 +222,50 @@ classdef sph_scenario < handle
         end
         
         %% % some geometry functions % %%
-        %%
-        function [x,Vparticle,I] = add_line(obj,omega_geo, N)
-            %generate N points in omega_geo
-            len = omega_geo(2)-omega_geo(1);
-            dx  = len/N;
-            % ||dx/2| X |dx| X |dx| X ... X |dx| X |dx/2|| 
-            x = (linspace(omega_geo(1)+dx/2, omega_geo(2)-dx/2,N))';
-            % Volume of one particle
-            Vparticle = dx;          
-            %update iterator
-            I = (obj.iter : obj.iter+N-1)';
-            obj.iter = obj.iter+N;
-        end
-        %%
-        function [xy,Vparticle,I] = add_rectangle(obj,omega_geo, N)
-            %generate N points in omega_geo
-            len_xy            = diff(omega_geo');
-            len_particle   = (prod(len_xy)/N)^0.5;
+        
+        %% generic function to create a rectangel in 1 and 2d
+        function [xy,dxy] = rectangle (~,omega_geo, N)
+           %generate N points in omega_geo
+            len_xy  = diff(omega_geo');
+            dim     = size(omega_geo,1);
+            len_particle   = (prod(len_xy)/N)^(1/dim);
             % amount of particle needed for an equidistant mesh
             N_xy = len_xy/len_particle; 
             % round this number
             N_xy = round(N_xy);
             Np = prod(N_xy);
-            dxy  = len_xy ./ N_xy;            
+            dxy  = len_xy ./ N_xy;    %mesh size    
             % ||dx/2| X |dx| X |dx| X ... X |dx| X |dx/2|| 
-            Nx = N_xy(1);
-            dx = dxy(1);
-            x = (linspace(omega_geo(1,1)+dx/2, omega_geo(1,2)-dx/2,Nx))';
-            Ny = N_xy(2);
-            dy = dxy(2);
-            y = (linspace(omega_geo(2,1)+dy/2, omega_geo(2,2)-dy/2,Ny))';
-            % create mesh
-            [t1,t2]= ndgrid(x,y);
-            xx = reshape(t1,[1,Np]);
-            yy = reshape(t2,[1,Np]);
-            xy=[xx',yy'];
+            for i = 1:dim
+                xtemp = (linspace(omega_geo(i,1)+dxy(i)/2,...
+                                  omega_geo(i,2)-dxy(i)/2,...
+                                  N_xy(i)))';                
+                if i == 2 %add second dimension
+                    % create mesh
+                    [t1,t2]= ndgrid(xy,xtemp);               
+                    xx = reshape(t1,[1,Np]);
+                    yy = reshape(t2,[1,Np]);
+                    xy=[xx',yy'];
+                else
+                    xy = xtemp;
+                end
+            end
+        end        
+        %%
+        function [xy,Vparticle,I] = add_rectangle(obj,omega_geo, N) %for 1 and 2 dimension
+            [xy,dxy] = rectangle (obj,omega_geo, N);
             % Volume of one particle
-            Vparticle = dx*dy;          
+            Vparticle = prod(dxy);          
+            Np = size(xy,1);
             %update iterator
             I = (obj.iter : obj.iter+Np-1)';
             obj.iter = obj.iter+Np;
         end
+        %%           
+        function [xy,Vparticle,I] = add_line(obj,omega_geo, N)
+            %use more general function
+            [xy,Vparticle,I] = add_rectangle(obj,omega_geo, N);
+        end        
         %%
         function dx = dx_min (obj)
             dim = size(obj.Xj,2);

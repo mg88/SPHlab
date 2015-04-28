@@ -9,7 +9,6 @@ ps.Ntot    = 500;
 ps.tend    = 0.2;
 
 ps.eta     = 1.2;     
-ps.eta2    = 2;  
 ps.scheme  = 'v';
 %IO
 ps.plot_dt = 1e-2;   
