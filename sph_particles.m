@@ -50,7 +50,7 @@ classdef sph_particles < handle
         Imaterial
         Imaterial_with_boun
         %Material property 
-        cj0         
+        c0j         
         cj
         beta
         mu
@@ -111,6 +111,7 @@ classdef sph_particles < handle
         %% constructor
         function obj = sph_particles(obj_scen)
             %initialize IO and read data if necessary
+            
             obj.IO = sph_IO(obj_scen); 
            
             obj.Omega = obj_scen.Omega;
@@ -120,7 +121,7 @@ classdef sph_particles < handle
 
             obj.rho0j = obj_scen.rho0j;            
             obj.rhoj  = obj_scen.rhoj;
-            obj.cj0   = obj_scen.c0j;
+            obj.c0j   = obj_scen.c0j;
             obj.cj    = obj_scen.cj;            
             
             obj.beta  = obj_scen.beta;
@@ -411,7 +412,7 @@ classdef sph_particles < handle
             end
             
             if any(obj.cell_of_j > Ncell_search)               
-                warning(' - particles not in cell structure! - ')
+                warning(' - some particles are not in the cell structure! (Increase Omega)- ')
                 keyboard
             end
             
@@ -754,7 +755,7 @@ classdef sph_particles < handle
         end
         %%
         function comp_pressure_isothermal(obj)
-            obj.pj(obj.Iin,:) = obj.cj0(obj.Iin) .* obj.cj0(obj.Iin) ...
+            obj.pj(obj.Iin,:) = obj.c0j(obj.Iin) .* obj.c0j(obj.Iin) ...
                                  .*(obj.rhoj(obj.Iin) - obj.rho0j(obj.Iin));
         end
         %%

@@ -5,11 +5,13 @@ classdef sph_IO < handle
         % evaluation points
         x_eval
         dx_eval
+        Nss  %super sampling
         %input
         
         %output       
         output_name
         write_data
+        save_dt
         
         %plot
         mfigure       %figurehandle
@@ -28,7 +30,11 @@ classdef sph_IO < handle
         con_dt
         con_mass
         con_momentum
-        con_energy   
+        con_energy  
+        
+        %some internal flags/variables
+        t_last_plot
+        t_last_save
      
     end
     
@@ -36,40 +42,48 @@ classdef sph_IO < handle
         
         %% %%% constructor
         function obj = sph_IO(obj_scen)
-              % some IO properties
+            if nargin == 1 %else, use only the functions
+              %% some IO properties
               obj.save_as_movie = obj_scen.save_as_movie;
               obj.movie_name    = get_movie_name(obj_scen);
+              obj.save_dt       = obj_scen.save_dt;
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plot_style    = obj_scen.plot_style;
-              obj.plot_quantity = obj_scen.plot_quantity;
-                                         
-              %read data from file and save in obj_scen
-              if obj_scen.read_data
-                 obj.read_hdf5(obj_scen);
-              end    
+              obj.plot_quantity = obj_scen.plot_quantity;                                          
               
-              % gridpoints to evaluate
-              Nscan = obj_scen.Ntot;
-              [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,Nscan);
-                            
-              %output
+              %% gridpoints to evaluate
+              if obj_scen.Neval > 0
+                  [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,obj_scen.Neval);
+              else
+                  obj.x_eval  = [];
+                  obj.dx_eval = [];              
+              end
+              obj.Nss     = obj_scen.Nss;
+
+              
+              %% output
               obj.write_data  = obj_scen.write_data;
               obj.output_name = obj_scen.output_name;
               if obj.write_data %create file
-                  hdf5write(obj.output_name, '/name', 0); % ToDo: better solution?
+                  hdf5write([obj.output_name,'.h5'], '/name', 0); % ToDo: better solution?
+                  save([obj.output_name,'_scen.mat'], 'obj_scen');
               end   
               
-              %conservation variables              
+              %% conservation variables              
               obj.con_mass = [];
               obj.con_momentum =[];
               obj.con_dt = [];
               obj.con_energy =[];
               obj.fixaxes = obj_scen.fixaxes;
+              
+              %%
+              obj.t_last_plot = -inf;
+              obj.t_last_save = -inf;
+            end
         end
         
         %% %%% general functions
         function initialize(obj)
-            %% output
 
             %% plot
             if ~strcmp(obj.plot_quantity,'')  %plot only, if plotstlye is specified
@@ -100,28 +114,35 @@ classdef sph_IO < handle
 %                 obj.mfigure.Position = [0 0 1 1];
                 obj.vidObj     = VideoWriter(obj.movie_name);
                 open(obj.vidObj);
-            end            
+            end   
+            
+            %% output
             
         end
         %%
         function do (obj, obj_particles)
             %% plotting
-            if (mod(obj_particles.t,obj.plot_dt) < obj_particles.dt ...
-                    && ~isempty(obj.plot_quantity)) %ToDo: good for variable timestepping?
+            if (((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
+                    && ~isempty(obj.plot_quantity))
                 plot_data (obj,obj_particles);
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
                     writeVideo(obj.vidObj,currFrame);
-                end
-               
-                %write output
-                if obj.write_data
-                     write_hdf5(obj,obj_particles)
-                end
+                end         
+                obj.t_last_plot = obj_particles.t;
             end  
+            
+            %% write output
+            if (((obj_particles.t-obj.t_last_save) > obj.plot_dt) ...
+                            && obj.write_data)
+                 write_hdf5(obj,obj_particles)
+                %name = ['data/out',num2str(obj_particles.dt),'.mat'];               
+                % save(name, 'obj_particles');   
+                 obj.t_last_save = obj_particles.t;
+            end
+            
             %check for conservation of mass and momentum
             checkConservation (obj,obj_particles);
- 
 
         end       
         %%
@@ -133,10 +154,11 @@ classdef sph_IO < handle
               close(obj.vidObj);
               disp (['movie saved as ',obj.movie_name]);
             end   
+            
+            %% plot conservation variables
             plot_conservation = true;
             mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
             if plot_conservation
-                %% plot conservation variables
                 fig=figure;
                 subplot(3,1,1)
                 plot(obj.con_dt,obj.con_mass)
@@ -158,15 +180,21 @@ classdef sph_IO < handle
                 xlabel('t'); ylabel('momentum ')
                 hold off;
                 subplot(3,1,3)
-                plot(obj.con_dt,obj.con_energy)
+                if ~isempty(obj.con_energy)
+                    plot(obj.con_dt,obj.con_energy)
+                else
+                    warning('cannot plot change of energy');
+                end
                 title('change of energy');
                 %move figure to the left side
                 figpos=fig.Position;
                 figpos(2)=0;
                 fig.Position =figpos;
             end
-            disp (['## relative dissipation of momentum = ',...
-                num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
+            if ~isempty(mom_norm)
+                disp (['## relative dissipation of momentum = ',...
+                    num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
+            end
         end
         %%
         function checkConservation (obj,obj_particles)
@@ -188,35 +216,39 @@ classdef sph_IO < handle
 %             ej = 0.5 * massj .* sum(data.vj.^2,2) + data.Vj.*data.pj.^2;
 %             obj.con_energy =[obj.con_energy;
 %                              sum(ej)];
+
             % change of energy
-            ej = data.vj(data.Iin)'*data.F_total(data.Iin) + ...
-                 sum(data.pj(data.Iin)./data.rhoj(data.Iin).^2 ...
-               .* data.drhoj(data.Iin) .*data.mj(data.Iin));
-            obj.con_energy =[obj.con_energy;
-                              sum(ej)];
+            if ~isempty(data.F_total)
+                ej = data.vj(data.Iin)'*data.F_total(data.Iin) + ...
+                     sum(data.pj(data.Iin)./data.rhoj(data.Iin).^2 ...
+                   .* data.drhoj(data.Iin) .*data.mj(data.Iin));
+                obj.con_energy =[obj.con_energy;
+                                  sum(ej)];
+            end
         end
-        %%
-        function [dat_eval] = eval_ss (obj,obj_p, data_name)           
+        %% super sampling
+        function dat_eval = eval_ss (obj,obj_p, data_name)  %ToDo: also for 2d!         
             %define evaluation points for supersampling
-           Noffset = 4;
+           Nsupersampling = obj.Nss;
            Neval   = size(obj.x_eval,1);
            
-           Noff_right = floor(Noffset/2);
-           if mod(Noffset,2)==0
-              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Noffset);
+           Noff_right = floor(Nsupersampling/2);
+           if mod(Nsupersampling,2)==0
+              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Nsupersampling);
                offset = [-xNoff_right(end:-1:1),xNoff_right];
            else %insert 0 for odd amount of offset points
-              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Noffset+1);
+              xNoff_right =  (-0.5 + (1:Noff_right)) * obj.dx_eval./(Nsupersampling+1);
                offset = [-xNoff_right(end:-1:1),0,xNoff_right];
            end
-           temp =  (obj.x_eval*ones(1,Noffset)) +...
+           
+           temp =  (obj.x_eval*ones(1,Nsupersampling)) +...
                    (ones(Neval,1) * offset);
            
-           x_eval_ss  =  reshape (temp, [Noffset*Neval,1]);                       
+           x_eval_ss  =  reshape (temp, [Nsupersampling*Neval,1]);                       
            %% evaluate data:
            dat_eval_ss = obj.eval (obj_p, data_name, x_eval_ss);
            %% supersampling with Box-Filter:
-           temp = reshape(dat_eval_ss, [Neval,Noffset]);           
+           temp = reshape(dat_eval_ss, [Neval,Nsupersampling]);           
 
            dat_eval = mean(temp,2);
         end
@@ -268,6 +300,7 @@ classdef sph_IO < handle
         
         %% %%%  Plotting functions %%% %%
         function plot_data(obj,obj_p,A_quantities)
+            %% some functions
             function plot_scatter(x,dat,mat)
                colo='gbkrm';
                %each material gets his own color
@@ -316,7 +349,7 @@ classdef sph_IO < handle
                dat_norm = sum(dat.^2,2).^0.5;
                dat_max = max(dat_norm);
             end
-           
+           %% start of routine
            if nargin < 3 %use prescribed quantities to plot if not given
                A_quantities = obj.plot_quantity;
            end
@@ -384,13 +417,14 @@ classdef sph_IO < handle
                if obj_p.dim == 1   
                    if quantity == 'f'
                        plot_force(obj_p);
-                   else                     
-                       %evaluate 
-                       dat_eval = obj.eval_ss(obj_p,dat_name);
-               
-                       plot(obj.x_eval,dat_eval,'x-')
-                       legend('smoothed values');
-                       
+                   else      
+                       if ~isempty(obj.x_eval)
+                           %evaluate 
+                           dat_eval = obj.eval_ss(obj_p,dat_name);
+
+                           plot(obj.x_eval,dat_eval,'-')
+                           legend('smoothed values');
+                       end
                        %plot particles
                        plot_scatter(x,obj_p.(dat_name),mat); 
  
@@ -560,38 +594,72 @@ classdef sph_IO < handle
         end
         %% %%% In/out %%% %%
         %%
-        function read_hdf5(~,obj_scen)
+        function read_hdf5(~,obj_data,filename,group)
   
-            function x=readVariable(x_name,filename,time)
-                 x=h5read(filename,['/',time,'/',x_name]);            
+            function x=readVariable(x_name,filename,group)
+                 x=h5read(filename,[group,'/',x_name]);            
             end
-            time = 0;
-            time_str = num2str(time);
-            filename =obj_scen.input_name;
+            filename = [filename,'.h5'];
+            
+            if ~exist(filename,'file')
+                error([filename,' does not exist!']);
+            end
+            
+            if ~isempty(obj_data.dim)
+                dim = obj_data.dim;
+            else
+                dim = 2; %for lime-sph
+            end
+
+            
             %position
-            obj_scen.Xj = [readVariable('x',filename,time_str),...
-                           readVariable('y',filename,time_str)];
-            %velocity                       
-            obj_scen.vj = [readVariable('u',filename,time_str),...
-                           readVariable('v',filename,time_str)];
-    
+            if dim == 1
+                obj_data.Xj = readVariable('x',filename,group); 
+                obj_data.vj = readVariable('u',filename,group);                
+            else
+                obj_data.Xj = [readVariable('x',filename,group),...
+                               readVariable('y',filename,group)];
+                %velocity                       
+                obj_data.vj = [readVariable('u',filename,group),...
+                               readVariable('v',filename,group)];
+            end
+                
             %speed of sound
             %c = readVariable('c',filename,time_str);
-            obj_scen.c0j = readVariable ('c0',filename,time_str);
-            obj_scen.cj = readVariable('c',filename,time_str);
+            obj_data.c0j = readVariable ('c0',filename,group);
+            obj_data.cj = readVariable('c',filename,group);
 
             %density            
             %rho = readVariable('rho',filename,time_str);
-            obj_scen.rho0j = readVariable('rho0',filename,time_str);
-            obj_scen.rhoj = readVariable('rho',filename,time_str);
+            obj_data.rho0j = readVariable('rho0',filename,group);
+            obj_data.rhoj = readVariable('rho',filename,group);
      
             %mass
-            mj = readVariable('m',filename,time_str);
-            obj_scen.Vj = mj ./ obj_scen.rhoj;
-                        
-            N = size(obj_scen.Xj,1);
-            obj_scen.Iin = (1:N)';
-            obj_scen.Imaterial = [1,N]; 
+            mj = readVariable('m',filename,group);
+            obj_data.Vj = mj ./ obj_data.rhoj;
+                  
+            % smoothing length
+            obj_data.hj = readVariable('h',filename,group);
+            %pressure
+            obj_data.pj = readVariable('p',filename,group);
+            
+            %time
+            obj_data.t = str2double(group(2:end));
+            
+            % take care for the indices
+            N = size(obj_data.Xj,1);
+            
+            if isempty(obj_data.Iin)
+                obj_data.Iin = (1:N)';
+            end
+            
+            if isempty(obj_data.Imaterial)
+                obj_data.Imaterial = [1,N]; 
+            elseif N>max(max(obj_data.Imaterial)) %add material (of boundary)
+                obj_data.Imaterial_with_boun = [obj_data.Imaterial;
+                                           max(max(obj_data.Imaterial)),N];
+            end
+            
           %  Gamma = readVariable('Gamma',filename,time_str);
           %  Gmod = readVariable('Gmod',filename,time_str);
           %  S = readVariable('S',filename,time_str);
@@ -605,22 +673,27 @@ classdef sph_IO < handle
 
         end
         %%
-        function write_hdf5(obj,obj_particle)
-            filename = obj.output_name;
-            time = obj_particles.t;
+        function write_hdf5(obj,obj_p)
+            filename = [obj.output_name,'.h5'];
+            time = obj_p.t;
             function writeVariable(filename,time,name,data)
                 group = ['/',num2str(time),'/',name];
                 hdf5write(filename, group, data, 'WriteMode', 'append');
             end
-            writeVariable(filename,time,'x',obj_particle.Xj(:,1));
-            writeVariable(filename,time,'y',obj_particle.Xj(:,2));
-            writeVariable(filename,time,'u',obj_particle.vj(:,1));
-            writeVariable(filename,time,'v',obj_particle.vj(:,2));
-            writeVariable(filename,time,'c',obj_particle.cj);
-            writeVariable(filename,time,'c0',obj_particle.cj0);
-            writeVariable(filename,time,'rho',obj_particle.rhoj);
-            writeVariable(filename,time,'rho0',obj_particle.rho0j);
-            writeVariable(filename,time,'m',obj_particle.mj);                        
+            writeVariable(filename,time,'x',obj_p.Xj(:,1));
+            writeVariable(filename,time,'u',obj_p.vj(:,1));
+            writeVariable(filename,time,'c',obj_p.cj);
+            writeVariable(filename,time,'c0',obj_p.c0j);
+            writeVariable(filename,time,'rho',obj_p.rhoj);
+            writeVariable(filename,time,'rho0',obj_p.rho0j);
+            writeVariable(filename,time,'m',obj_p.mj);                        
+            writeVariable(filename,time,'h',obj_p.hj);                        
+            writeVariable(filename,time,'p',obj_p.pj);                        
+
+            if obj_p.dim == 2
+                writeVariable(filename,time,'y',obj_p.Xj(:,2));
+                writeVariable(filename,time,'v',obj_p.vj(:,2));                
+            end
             
             %% out
             % Gamma, Gmod, O, S, Vol, Y0, c, c0, e, eh, epsdotXX, epsdotXY,

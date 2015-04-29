@@ -4,12 +4,8 @@
 close all; clear;
 ps = sph_scenario();
 
-ps.write_data = false;
-ps.read_data  = false;
-ps.input_name = 'test';
-
 %% general parameter
-ps.Ntot    = 5000;
+ps.Ntot    = 1000;
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
@@ -21,10 +17,14 @@ ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'vpd';
+ps.plot_quantity = '';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.5,0.5];
+%output
+ps.save_dt = 5e-2;
+ps.write_data = true;
+ps.output_name ='data/impact';
 
 %% material parameter
 rho0 = 1;   

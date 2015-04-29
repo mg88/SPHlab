@@ -4,8 +4,9 @@
 close all; clear; clc;
 ps = sph_scenario();
 %% general parameter
-ps.Ntot    = 1005;
-ps.tend    = 1.3;   
+%ps.Ntot    = 2000;
+ps.Ntot    = [319,1680];
+ps.tend    = 1.6;   
 %ps.dtfactor  =0.1;
 
 ps.eta     = 1.2;     
@@ -14,27 +15,32 @@ ps.set_kernel('Wendland');
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
-ps.plot_quantity = 'xvpd';
-ps.plot_style.p = 'plot3';
+ps.plot_quantity = '';%'xvpd';
+ps.plot_style.p = 'patches';% 'plot3';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.005,0.005];
 %ps.fixaxes.d = [1-1e-2,1+1e-2];
-
+%output
+ps.save_dt = 5e-2;
+ps.write_data = true;
+ps.output_name ='data/riemann2d_boun';
 
  %% material parameter
 rho0 = 1;   
 c0   = 1;
 
 %% domain         
-ps.Omega = [-0.1,1  ;  %x
-            0,0.5]; %y
+ps.Omega = [-0.2,2.2  ;  %x
+            -0.3,0.3]; %y
   
 %% active particles
 l  = 0;
-interface=0.3;
-r  = 0.7;
-h1 = 0.1;
-h2 = 0.4;
+interface=0.15;
+r  = 1;
+%r  = 1.85;
+
+h1 = -0.2;
+h2 = 0.2;
 %left
 omega_geo = [l,interface; %x
              h1,h2]; %y

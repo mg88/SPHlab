@@ -4,48 +4,48 @@
 close all; clear; clc;
 ps = sph_scenario();
 
-%read input?
-ps.read_data  = false;
-ps.input_name = 'test';
 %% general parameter
 ps.Ntot      = 100;
 ps.equalmass = false;
-%ps.dt        = 1e-3;
-%ps.dtfactor  =0.01;
-ps.tend      = 1.3; 
+ps.dt        = 1e-3;
+%ps.dtfactor  = 0.01;
+ps.tend      = 1.6; 
 
 ps.eta     = 1.2;     
 ps.set_kernel('Wendland');
 
-ps.scheme  = 'v';
+ps.scheme  = 'm';
 ps.h_const = false;
 
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = 'dvp';
+ps.plot_quantity = '';
 ps.fixaxes.v = [-0.003, 0.005];
 ps.fixaxes.p = [-0.005 , 0.005];
-%ps.fixaxes.d = [1-1e-2 ,1+1e-2 ];
-
-
+ps.fixaxes.d = [1-1e-2 ,1+1e-2 ];
+ps.Neval = 200;
+%output
+ps.save_dt = 5e-2;
+ps.write_data = true;
+ps.output_name ='data/riemann_boun';
  %% material parameter
 rho0 = 1;     % density
 c0   = 1.0; 
 
 %% domain         
-ps.Omega = [-0.1, 0.8]; 
+ps.Omega = [-0.1, 2.1]; 
 
 %% active particles
 
 %left
-omega_geo = [0,0.3]; %x
+omega_geo = [0,0.15]; %x
 v0   = 0.004;
 ps.add_geometry(omega_geo, rho0, v0, c0)
 
 % middle
-omega_geo = [omega_geo(2),0.7]; %x
+omega_geo = [omega_geo(2),1]; %x
 v0   = 0;
 ps.add_geometry(omega_geo, rho0, v0, c0)
 

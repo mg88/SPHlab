@@ -50,19 +50,20 @@ classdef sph_scenario < handle
         g_ext    %gravity
 
         %% IO
-        % input
-        read_data
-        input_name
         % output
         write_data
-        output_name
+        save_dt   %timestep for saving the data
+        output_name        
        
         % some plotting properties
         plot_dt         % plotting timestep
         plot_style       % 1D;x: scatter  
                          % 2D - scalar: trisurf | patches; field: quiver
         plot_quantity    %which quantity shall be plottet v-velocity, x-position, p-pressure, d-density, f-forces
-        fixaxes         %struct to define the axes           
+        fixaxes         %struct to define the axes    
+        %%        
+        Neval           % amount of evaluation points 
+        Nss             % amount of supersampling points (in each direction)
         %movie settings                        
         save_as_movie
         movie_name
@@ -74,9 +75,8 @@ classdef sph_scenario < handle
     
     methods
         % Constructor
-        function obj = sph_scenario()
+        function obj = sph_scenario(filename)
            % some standard parameter 
-           
            obj.kernel = 'Wendland'; 
            obj.kernel_cutoff = 2;
            obj.scheme = 'm';
@@ -84,18 +84,16 @@ classdef sph_scenario < handle
            obj.h_const   = false;           
            obj.dt        = [];
            obj.dtfactor  = 0.5;
-           
+
            obj.beta = 0; %material dependent!
            obj.mu   = 0;
-                   
+
            obj.geo = struct([]);
-           
+
            obj.geo_noise = 0;
            obj.g_ext = []; 
-           
+
            %IO
-           obj.save_as_movie = false;
-           obj.movie_name = 'out';
            obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
                                    'p','patches',...
@@ -103,12 +101,16 @@ classdef sph_scenario < handle
                                    'v','quiver',...
                                    'f','quiver',...
                                    'e','patches');
-           obj.read_data = false;           
+           obj.Neval = 0;
+           obj.Nss   = 1; %(no supersampling)
+           
+           obj.save_as_movie = false;
+           obj.movie_name = 'out';
            obj.write_data = false; 
-           obj.output_name ='data_out.h5';
+           obj.output_name ='data/data_out';
            obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[],'e',[]);
            obj.bc      = struct([]);
-           
+
            %some initialization
            obj.Iin   = [];
            obj.Imaterial = [];
@@ -117,6 +119,24 @@ classdef sph_scenario < handle
            obj.iter  = 1; 
            obj.iter_boun = 1;
            obj.iter_geo = 1;
+
+           if nargin  > 0
+               %% read file and overwrite some properties
+               % with excisting scenario:
+               filename_scen = [filename,'_scen.mat'];
+               if exist (filename_scen,'file')
+                   load(filename_scen);
+                   obj = obj_scen;  %overwrite everything  
+               else
+                   %without (e.g. from LimeSPH)
+                   time = 0;
+                   obj_IO = sph_IO();
+                   obj_IO.read_hdf5(obj,filename,time);
+                   warning('Make sure that all properties (like Omega) are defined!');
+               end
+               obj.write_data = false; 
+               obj.output_name =[obj.output_name,'_new'];
+           end
         end   
         
         %%
@@ -159,26 +179,39 @@ classdef sph_scenario < handle
         end
         %%
         function create_geometry(obj)
-            m_tot = 0;
-            V_tot = 0;
+            %if only a total amount of particle is given, try to distribute
+            %the particles in a fair way
             dim = size(obj.Omega,1);
-            %compute overall volume and mass
-            for i = 1:size(obj.geo,2)
-               obj.geo(i).V = prod(diff(obj.geo(i).omega_geo'));
-               V_tot = V_tot + obj.geo(i).V;
-               obj.geo(i).m = obj.geo(i).V * obj.geo(i).rho0;
-               m_tot = m_tot + obj.geo(i).m;
-            end
-            %compute particels per geometry object
-            for i = 1:size(obj.geo,2)
-                if obj.equalmass
-                    obj.geo(i).N = obj.Ntot/m_tot * obj.geo(i).m;
-                else
-                    obj.geo(i).N = obj.Ntot/V_tot * obj.geo(i).V;
+            if length(obj.Ntot) == 1 
+                m_tot = 0;
+                V_tot = 0;
+                %compute overall volume and mass
+                for i = 1:size(obj.geo,2)
+                   obj.geo(i).V = prod(diff(obj.geo(i).omega_geo'));
+                   V_tot = V_tot + obj.geo(i).V;
+                   obj.geo(i).m = obj.geo(i).V * obj.geo(i).rho0;
+                   m_tot = m_tot + obj.geo(i).m;
                 end
-                %adjust amount of particles
-                obj.geo(i).N = round(obj.geo(i).Nfactor * obj.geo(i).N);
-            end
+                %compute particels per geometry object
+                for i = 1:size(obj.geo,2)
+                    if obj.equalmass
+                        obj.geo(i).N = obj.Ntot/m_tot * obj.geo(i).m;
+                    else
+                        obj.geo(i).N = obj.Ntot/V_tot * obj.geo(i).V;
+                    end
+                    %adjust amount of particles
+                    obj.geo(i).N = round(obj.geo(i).Nfactor * obj.geo(i).N);
+                end
+            % otherwise use predefined number
+            else
+                if length(obj.Ntot) ~= obj.iter_geo-1
+                   error ('Size of Ntot does not fit to the number of geometries.');                     
+                end
+                for i = 1:size(obj.geo,2)
+                   obj.geo(i).N = obj.Ntot(i);                     
+                end
+            end                        
+            
             for i = 1:size(obj.geo,2)
                 %create geometry
                 if dim == 1
@@ -228,10 +261,11 @@ classdef sph_scenario < handle
            %generate N points in omega_geo
             len_xy  = diff(omega_geo');
             dim     = size(omega_geo,1);
+            
             len_particle   = (prod(len_xy)/N)^(1/dim);
             % amount of particle needed for an equidistant mesh
             N_xy = len_xy/len_particle; 
-            % round this number
+            % round this number            
             N_xy = round(N_xy);
             Np = prod(N_xy);
             dxy  = len_xy ./ N_xy;    %mesh size    

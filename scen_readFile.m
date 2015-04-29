@@ -2,16 +2,14 @@
 % 1d riemann problem
 
 close all; clear; clc;
-ps = sph_scenario();
-
-ps.read_data = true;
-ps.input_name = 'in-hvi.h5';
+ps = sph_scenario('in-hvi');
 
 ps.write_data = false;
 
 ps.set_kernel('Wendland');
 ps.Omega = [ -0.1, 0.4;
             -0.3, 0.3];
+ 
 %    --scheme n \
 %    --weakly-compressible 0 \
     ps.eta  = 1.2;
@@ -35,11 +33,14 @@ ps.plot_dt = 1e-6;
 ps.save_as_movie = false;
 ps.plot_quantity = 'p';
 ps.fixaxes.p = [-1,1];
-
+ps.Neval = 0;
 %% create particle class
 obj_particles = sph_particles(ps);
+
+obj_particles.IO.plot_data(obj_particles,'dpv');
+
 %% start simulation
-start_simulation(obj_particles)
+%start_simulation(obj_particles)
 
             %% in
             %Gamma,
