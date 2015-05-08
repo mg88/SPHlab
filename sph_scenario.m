@@ -13,6 +13,7 @@ classdef sph_scenario < handle
         kernel_cutoff  % r/h<=kernel_cutoff
 
         scheme      % m | v
+        EOS         % ISO (isothermal) | MG (Mie-Gruneisen) | Water | 
         h_const     % is h constant (true) or dependent on density (false) 
         %% geometry
         Ntot        % desired amount of particles
@@ -25,6 +26,7 @@ classdef sph_scenario < handle
         geo_noise    % some noise in the position
         vj           % velocity                
         Vj           % volume per particle
+        ej           % specific internal energy
         
         %% indices domain
         Iin  
@@ -45,6 +47,9 @@ classdef sph_scenario < handle
         cj
         beta      % for surface tension (scalar)
         mu        % for dissipation
+        
+        % experimantal settings (struct)
+        exp_settings
         
         % 
         g_ext    %gravity
@@ -80,6 +85,7 @@ classdef sph_scenario < handle
            obj.kernel = 'Wendland'; 
            obj.kernel_cutoff = 2;
            obj.scheme = 'm';
+           obj.EOS    = 'ISO';
            obj.equalmass = false;
            obj.h_const   = false;           
            obj.dt        = [];
@@ -110,7 +116,9 @@ classdef sph_scenario < handle
            obj.output_name ='data/data_out';
            obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[],'e',[]);
            obj.bc      = struct([]);
-
+           obj.exp_settings = struct(...
+                                     'tweakmass',false...  
+                                     );
            %some initialization
            obj.Iin   = [];
            obj.Imaterial = [];
@@ -129,9 +137,9 @@ classdef sph_scenario < handle
                    obj = obj_scen;  %overwrite everything  
                else
                    %without (e.g. from LimeSPH)
-                   time = 0;
-                   obj_IO = sph_IO();
-                   obj_IO.read_hdf5(obj,filename,time);
+                   group = '/0';
+                   obj_IO = sph_IO();                   
+                   obj_IO.read_hdf5(obj,filename,group);
                    warning('Make sure that all properties (like Omega) are defined!');
                end
                obj.write_data = false; 
@@ -165,14 +173,18 @@ classdef sph_scenario < handle
            end
         end
         %%
-        function add_geometry(obj,omega_geo, rho0, v0, c0,Nfactor)
+        function add_geometry(obj,omega_geo, rho0, v0, c0,e0,Nfactor)
             if nargin <6
+                e0 = 0;
+            end           
+            if nargin <7
                 Nfactor =1;
             end
             obj.geo(obj.iter_geo).omega_geo = omega_geo;
             obj.geo(obj.iter_geo).rho0      = rho0;
             obj.geo(obj.iter_geo).v0        = v0;
             obj.geo(obj.iter_geo).c0        = c0;
+            obj.geo(obj.iter_geo).e0        = e0;
             obj.geo(obj.iter_geo).Nfactor   = Nfactor;
             
             obj.iter_geo = obj.iter_geo +1;
@@ -227,6 +239,7 @@ classdef sph_scenario < handle
                 obj.vj(I,:)    = ones(size(I,1),1)*obj.geo(i).v0;     
                 obj.c0j(I,1)   = obj.geo(i).c0;
                 obj.cj(I,1)    = obj.geo(i).c0;
+                obj.ej(I,1)    = obj.geo(i).e0;
                 obj.rho0j(I,1) = obj.geo(i).rho0;
                 obj.rhoj(I,1)  = obj.geo(i).rho0;
                 obj.Imaterial = [obj.Imaterial;...

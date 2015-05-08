@@ -5,15 +5,16 @@ close all; clear; clc;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 500;
-ps.tend    = 0.2;
+ps.Ntot    = 10000;
+ps.tend    = 0.1;
 
 ps.eta     = 1.2;     
 ps.scheme  = 'v';
+
 %IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'p';
+ps.plot_quantity = '';
 ps.fixaxes.p = [-1,1];
 
 

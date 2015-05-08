@@ -30,7 +30,8 @@ classdef sph_IO < handle
         con_dt
         con_mass
         con_momentum
-        con_energy  
+        con_e_kin
+        con_e_pot
         
         %some internal flags/variables
         t_last_plot
@@ -73,7 +74,8 @@ classdef sph_IO < handle
               obj.con_mass = [];
               obj.con_momentum =[];
               obj.con_dt = [];
-              obj.con_energy =[];
+              obj.con_e_kin =[];
+              obj.con_e_pot =[];
               obj.fixaxes = obj_scen.fixaxes;
               
               %%
@@ -180,12 +182,16 @@ classdef sph_IO < handle
                 xlabel('t'); ylabel('momentum ')
                 hold off;
                 subplot(3,1,3)
-                if ~isempty(obj.con_energy)
-                    plot(obj.con_dt,obj.con_energy)
+                if ~isempty(obj.con_e_pot) && ~isempty(obj.con_e_kin)
+                    plot(obj.con_dt,obj.con_e_pot,...
+                         obj.con_dt,obj.con_e_kin,...
+                         obj.con_dt,obj.con_e_pot+obj.con_e_kin...
+                         );
+                     legend ('e_{pot}','e_{kin}','e_{tot}');
+                     title('energy');
                 else
-                    warning('cannot plot change of energy');
+                    warning('cannot plot energy');
                 end
-                title('change of energy');
                 %move figure to the left side
                 figpos=fig.Position;
                 figpos(2)=0;
@@ -217,14 +223,26 @@ classdef sph_IO < handle
 %             obj.con_energy =[obj.con_energy;
 %                              sum(ej)];
 
-            % change of energy
-            if ~isempty(data.F_total)
-                ej = data.vj(data.Iin)'*data.F_total(data.Iin) + ...
-                     sum(data.pj(data.Iin)./data.rhoj(data.Iin).^2 ...
-                   .* data.drhoj(data.Iin) .*data.mj(data.Iin));
-                obj.con_energy =[obj.con_energy;
-                                  sum(ej)];
+            %energy:
+            if data.dim==2
+              norm_vj_sqrt = (data.vj(data.Iin,1).^2 + data.vj(data.Iin,2).^2);
+            else
+                norm_vj_sqrt = data.vj(data.Iin,1).^2;
             end
+            e_kin = 0.5 .* data.mj(data.Iin).* norm_vj_sqrt;
+            e_pot = data.mj(data.Iin).*data.ej(data.Iin);
+            obj.con_e_kin =[obj.con_e_kin;
+                                  sum(e_kin)];
+            obj.con_e_pot =[obj.con_e_pot;
+                            sum(e_pot)];
+
+%             % change of energy
+%             if ~isempty(data.Fj_tot)
+%                 ej = (norm_vj_sqrt.^0.5)'*data.Fj_tot(data.Iin) + ...
+%                      sum(data.pj(data.Iin)./data.rhoj(data.Iin).^2 ...
+%                    .* data.drhoj(data.Iin) .*data.mj(data.Iin));
+%                 
+%             end
         end
         %% super sampling
         function dat_eval = eval_ss (obj,obj_p, data_name)  %ToDo: also for 2d!         
@@ -251,8 +269,7 @@ classdef sph_IO < handle
            temp = reshape(dat_eval_ss, [Neval,Nsupersampling]);           
 
            dat_eval = mean(temp,2);
-        end
-        
+        end        
         %%
         function dat_eval = eval(~,obj_p,data_name,x_eval)           
            %cells of the scanning points
@@ -288,8 +305,10 @@ classdef sph_IO < handle
                dat = obj_p.(data_name);
            end
            dat =  dat.*(obj_p.Vj * ones(1,size(dat,2)));
-           dat_eval = zeros(NN,obj_p.dim);
+           dat_eval = zeros(NN,size(dat,2));
            %add up everything
+               %       keyboard
+
            for k = 1:NN                
                 II = ismember(pij_eval(:,1),k);
                 dat_eval(k,:) = sum((Wij_eval(II)* ones(1,size(dat,2))...
@@ -312,10 +331,10 @@ classdef sph_IO < handle
              
             function plot_force(data)
                 bar(data.Xj(data.Iin),...
-                    [data.F_int(data.Iin),data.F_diss(data.Iin),data.F_diss_art(data.Iin),data.F_ST(data.Iin)]);
+                    [data.Fj_int(data.Iin),data.F_phy_diss(data.Iin),data.Fj_diss(data.Iin),data.Fj_ST(data.Iin)]);
                 title('forces')
                 xlim([data.Omega(1) data.Omega(2)]);
-                legend('F_{int}','F_{diss}','F_{diss-art}','F_{ST}');
+                legend('F_{int}','F_{phydiss}','F_{diss}','F_{ST}');
             end
            
             function plot_patches(x,y,z,sizeOfCirlce,opacity)
@@ -605,12 +624,11 @@ classdef sph_IO < handle
                 error([filename,' does not exist!']);
             end
             
-            if ~isempty(obj_data.dim)
+            if isprop(obj_data,'dim')
                 dim = obj_data.dim;
             else
                 dim = 2; %for lime-sph
             end
-
             
             %position
             if dim == 1
@@ -637,14 +655,21 @@ classdef sph_IO < handle
             %mass
             mj = readVariable('m',filename,group);
             obj_data.Vj = mj ./ obj_data.rhoj;
-                  
-            % smoothing length
-            obj_data.hj = readVariable('h',filename,group);
-            %pressure
-            obj_data.pj = readVariable('p',filename,group);
             
-            %time
-            obj_data.t = str2double(group(2:end));
+            %energy
+            obj_data.ej = readVariable('e',filename,group);
+            
+            % some extra information (only available from a simulation
+            % output - and not necessary to create a scenario)
+            if isprop(obj_data,'hj')
+                % smoothing length
+                obj_data.hj = readVariable('h',filename,group);
+                %pressure
+                obj_data.pj = readVariable('p',filename,group);
+
+                %time
+                obj_data.t = str2double(group(2:end));                
+            end
             
             % take care for the indices
             N = size(obj_data.Xj,1);
@@ -659,12 +684,11 @@ classdef sph_IO < handle
                 obj_data.Imaterial_with_boun = [obj_data.Imaterial;
                                            max(max(obj_data.Imaterial)),N];
             end
-            
+           
           %  Gamma = readVariable('Gamma',filename,time_str);
           %  Gmod = readVariable('Gmod',filename,time_str);
           %  S = readVariable('S',filename,time_str);
           %  Y0 = readVariable('Y0',filename,time_str);
-          %  e = readVariable('e',filename,time_str);
           %  p = readVariable('p',filename,time_str);
           %  phi = readVariable('phi',filename,time_str);
           %  tauXX = readVariable('tauXX',filename,time_str);

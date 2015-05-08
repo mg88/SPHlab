@@ -13,7 +13,7 @@ ps.Omega = [ -0.1, 0.4;
 %    --scheme n \
 %    --weakly-compressible 0 \
     ps.eta  = 1.2;
-
+ps.EOS     = 'MG';
     %--alphamom 10 \
     %--alphamass 0.5 \
     %--alphaen 0.0 \
@@ -40,7 +40,7 @@ obj_particles = sph_particles(ps);
 obj_particles.IO.plot_data(obj_particles,'dpv');
 
 %% start simulation
-%start_simulation(obj_particles)
+start_simulation(obj_particles)
 
             %% in
             %Gamma,

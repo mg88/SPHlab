@@ -15,14 +15,14 @@ ps.set_kernel('Wendland');
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
-ps.plot_quantity = '';%'xvpd';
+ps.plot_quantity = 'xvpe';
 ps.plot_style.p = 'patches';% 'plot3';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.005,0.005];
 %ps.fixaxes.d = [1-1e-2,1+1e-2];
 %output
 ps.save_dt = 5e-2;
-ps.write_data = true;
+ps.write_data = false;
 ps.output_name ='data/riemann2d_boun';
 
  %% material parameter
@@ -51,7 +51,8 @@ ps.add_geometry(omega_geo, rho0, v0, c0)
 omega_geo = [interface,r; %x
              h1,h2]; %y
 v0    = [0,0];
-ps.add_geometry(omega_geo, rho0, v0, c0)
+e0  = 0;
+ps.add_geometry(omega_geo, rho0, v0, c0, e0)
    
 %% set BC
 %no-reflecting bc right

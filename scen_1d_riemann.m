@@ -9,27 +9,32 @@ ps.Ntot      = 100;
 ps.equalmass = false;
 ps.dt        = 1e-3;
 %ps.dtfactor  = 0.01;
-ps.tend      = 1.6; 
+ps.tend      = 1.8; 
 
 ps.eta     = 1.2;     
 ps.set_kernel('Wendland');
 
 ps.scheme  = 'm';
+ps.EOS     = 'MG';
 ps.h_const = false;
+
+%experimental settings:
+ps.exp_settings.tweakmass = true;
+
 
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = '';
+ps.plot_quantity = 'pev';
 ps.fixaxes.v = [-0.003, 0.005];
 ps.fixaxes.p = [-0.005 , 0.005];
-ps.fixaxes.d = [1-1e-2 ,1+1e-2 ];
-ps.Neval = 200;
+ps.fixaxes.d = [1-1e-1 ,1+1e-1 ];
+ps.Neval = 700;
 %output
 ps.save_dt = 5e-2;
-ps.write_data = true;
-ps.output_name ='data/riemann_boun';
+ps.write_data = false;
+ps.output_name ='data/riemann_boun_mass';
  %% material parameter
 rho0 = 1;     % density
 c0   = 1.0; 

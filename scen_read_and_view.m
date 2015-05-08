@@ -2,12 +2,22 @@
 % read and compare solutions
 
 close all; clear; clc;
-%input_name = 'data/impact';
-input_name1 = 'data/riemann2d_inf';
+%input_name1 = 'data/impact';
+input_name1 = 'data/riemann_inf';
+
+input_name1 = '../../../../Desktop/out-hvi';
+
 
 ps1 = sph_scenario(input_name1);
 
 ps1.plot_quantity = 'vpd';
+
+
+%
+ps1.eta = 1.2;
+ps1.Omega = [ -0.1, 0.4;
+            -0.3, 0.3];
+ps1.plot_dt = 1e-6;  
 
 
 %% create particle class

@@ -3,14 +3,14 @@
 
 close all; clear; clc;
 %input_name = 'data/impact';
-input_name1 = 'data/riemann_inf';
-input_name2 = 'data/riemann_boun';
+input_name1 = 'data/riemann2d_inf';
+input_name2 = 'data/riemann2d_boun'; %_mass
 
 ps1 = sph_scenario(input_name1);
 ps2 = sph_scenario(input_name2);
 
 var_name = 'pj';
-Neval   = 250;
+Neval   = 500;
 Nss = 2;
 ps1.Neval = Neval;
 ps2.Neval = Neval;
@@ -56,12 +56,18 @@ while(i<size(data.Groups,1));
     dat_eval2 = obj_particles2.IO.eval (obj_particles2, var_name,x_eval2);
     
         %% evaluate differences: (with suppersampling)
-    %dat_eval1 = obj_particles1.IO.eval_ss (obj_particles1, var_name);
-    %dat_eval2 = obj_particles2.IO.eval_ss (obj_particles2, var_name);
+%     dat_eval1 = obj_particles1.IO.eval_ss (obj_particles1, var_name);
+%     dat_eval2 = obj_particles2.IO.eval_ss (obj_particles2, var_name);
+%     
     
     subplot(2,1,1)    
-    plot(x_eval1,dat_eval1,...
-         x_eval2,dat_eval2);
+    %2d
+%     plot(x_eval1,dat_eval1,...
+%          x_eval2,dat_eval2);
+    %3d
+    plot3(x_eval1(:,1),x_eval1(:,2),dat_eval1,'x',...
+          x_eval2(:,1),x_eval2(:,2),dat_eval2,'o');
+   view([0,-1,0])
     title([group,' ; ', var_name]);
     % time evolution of the l2-error
     subplot(2,1,2)

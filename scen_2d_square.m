@@ -5,7 +5,7 @@ close all; clear; clc;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 1005;
+ps.Ntot    = 4005;
 ps.dtfactor= 0.4;
 
 ps.tend    = 0.1;    
@@ -14,7 +14,7 @@ ps.eta     = 1.2;
 %IO
 ps.plot_dt = 1e-3;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'xpd';
+ps.plot_quantity = 'xpde';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.1,0.1];
