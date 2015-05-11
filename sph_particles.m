@@ -91,7 +91,6 @@ classdef sph_particles < handle
         dWij_hj
         ddWij
         dWij_over_rij
-        v_sig  %signal velocity
         %smoothing length
         hj 
         h_const  %boolean
@@ -1224,99 +1223,95 @@ classdef sph_particles < handle
         end
         %%
         function comp_dissipation(obj)
-            %% -------------------------
-            function comp_diss_mass(obj) % Dissipative mass flux (Zizis2014)
-                alpha_mass = obj.art_diss_para.alpha_mass;
-                rho_ij_bar = (obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij))/2;
-                %approach 1 (remove vijxijh<=0 in qrho_ij_diss!)
-                cj_bar     = (obj.cj(obj.Ii)   + obj.cj(obj.Ij)  )/2;
-                v_sig_rho = cj_bar;   
-                %approach 2 (switch on vijxijh<=0 in qrho_ij_diss!)
-    %             beta_mass  = 1;
-    %             vijxijh = sum(...
-    %                    ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
-    %                      obj.xij_h(obj.active_k_pij,:)...
-    %                      ,2);
-    %              v_sig1 = (0.5 *(obj.cj(obj.Ii)+obj.cj(obj.Ij))...
-    %                    - 0.5*beta_mass*vijxijh); 
-    % 
-                
-                % reset vectors
-                obj.drhoj_diss  = 0*obj.drhoj_diss; 
-                qrho_ij_diss = zeros(size(obj.pij,1),1);
-                qrho_ji_diss = zeros(size(obj.pij,1),1);
-                % compute fluxes
-                qrho_ij_diss(obj.active_k_pij,:) = alpha_mass* ... % i-> j %hi
-                    obj.mj(obj.Ij).*...
-                    (obj.pj(obj.Ii)-obj.pj(obj.Ij))./...
-                    (rho_ij_bar .* v_sig_rho)...
-                    .*obj.dWij;%.*(vijxijh<=0);
+            % parameters:
+            alpha_mass = obj.art_diss_para.alpha_mass;
+            alpha_viscosity = obj.art_diss_para.alpha_viscosity;
+            beta_viscosity  = obj.art_diss_para.beta_viscosity;
+            alpha_energy = obj.art_diss_para.alpha_energy;
 
-                qrho_ji_diss(obj.active_k_pij,:) = alpha_mass* ... % i-> j %hi
-                    obj.mj(obj.Ii).*...
-                    (obj.pj(obj.Ij)-obj.pj(obj.Ii))./...
-                    (rho_ij_bar .* v_sig_rho)...
-                    .*obj.dWij;%.*(vijxijh<=0);            
-                % spread flux onto nodes
-                obj.drhoj_diss = ((obj.AedgesXj>0) * qrho_ij_diss +...
-                                  (obj.AedgesXj<0) * qrho_ji_diss);                      
-            end
-            %%
-            function comp_diss_force(obj)      %viscosity - dissipative velocity - Iason %h constant!
-                alpha_viscosity = obj.art_diss_para.alpha_viscosity;
-                beta_viscosity  = obj.art_diss_para.beta_viscosity;
-                vijxijh = sum(...
-                       ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
-                         obj.xij_h(obj.active_k_pij,:)...
-                         ,2);
-                 v_sig_force = (0.5 *(obj.cj(obj.Ii)+obj.cj(obj.Ij))...
-                        - 0.5*beta_viscosity*vijxijh)...
-                       .*(vijxijh<=0); 
-                 obj.v_sig = v_sig_force;
-                 % reset vectors
-                 qFj_diss_ij = zeros(size(obj.pij,1),obj.dim);
-                 %compute the fluxes
-                 qFj_diss_ij(obj.active_k_pij,:)  = ...
-                     ((obj.mj(obj.Ii) .* obj.mj(obj.Ij).* ...
-                     alpha_viscosity .*v_sig_force .* vijxijh) ./...
-                     (0.5 *(obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij)))... bar(rho)
-                     .*obj.dWij)...   
-                     *ones(1,obj.dim)...
-                     .*obj.xij_h(obj.active_k_pij,:);
-                  % spread flux onto nodes
-                  obj.Fj_diss = obj.AedgesXj * qFj_diss_ij;
+            % reset data:
+            obj.drhoj_diss  = 0*obj.drhoj_diss; 
+            qrho_ij_diss = zeros(size(obj.pij,1),1);
+            qrho_ji_diss = zeros(size(obj.pij,1),1);         
+            obj.Fj_diss  = 0*obj.Fj_diss; 
+            qFj_diss_ij = zeros(size(obj.pij,1),obj.dim);           
+            obj.dej_diss  = 0*obj.dej_diss; 
+            qe_ij_diss = zeros(size(obj.pij,1),1);
+            qe_ji_diss = zeros(size(obj.pij,1),1);
+            qe_ij_sym  = zeros(size(obj.pij,1),1);
+            
+            %% some general quantities:
+            vijxijh = sum(...
+                   ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
+                     obj.xij_h(obj.active_k_pij,:)...
+                     ,2);
+            rho_ij_bar = (obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij))/2;
+            cj_bar     = (obj.cj(obj.Ii)   + obj.cj(obj.Ij)  )/2;
 
-            end  
-            %% (double check that)
-            function comp_diss_energy(obj) % conductivity (Zizis2014)
-                alpha_energy = obj.art_diss_para.alpha_energy;
-                alpha_viscosity = obj.art_diss_para.alpha_viscosity;%1;
+            %% Dissipative mass flux (Zizis2014)
+            %approach 1 (remove vijxijh<=0 in qrho_ij_diss!)
+            v_sig_rho = cj_bar;   
+            %approach 2 (switch on vijxijh<=0 in qrho_ij_diss!)
+%             beta_mass  = 1;
+%             vijxijh = sum(...
+%                    ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
+%                      obj.xij_h(obj.active_k_pij,:)...
+%                      ,2);
+%              v_sig1 = (0.5 *(obj.cj(obj.Ii)+obj.cj(obj.Ij))...
+%                    - 0.5*beta_mass*vijxijh); 
+% 
                 
-                vijxijh = sum(...
-                       ((obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:))).*... (vi-vj)*hat(xij)
-                         obj.xij_h(obj.active_k_pij,:)...
-                         ,2);
-                rho_ij_bar = (obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij))/2;
-                %approach 1 (remove vijxijh<=0 in qrho_ij_diss!)
-               
+            % compute fluxes
+            qrho_ij_diss(obj.active_k_pij,:) = alpha_mass* ... % i-> j %hi
+                obj.mj(obj.Ij).*...
+                (obj.pj(obj.Ii)-obj.pj(obj.Ij))./...
+                (rho_ij_bar .* v_sig_rho)...
+                .*obj.dWij;%.*(vijxijh<=0);
+
+            qrho_ji_diss(obj.active_k_pij,:) = alpha_mass* ... % i-> j %hi
+                obj.mj(obj.Ii).*...
+                (obj.pj(obj.Ij)-obj.pj(obj.Ii))./...
+                (rho_ij_bar .* v_sig_rho)...
+                .*obj.dWij;%.*(vijxijh<=0);            
+            % spread flux onto nodes
+            obj.drhoj_diss = ((obj.AedgesXj>0) * qrho_ij_diss +...
+                              (obj.AedgesXj<0) * qrho_ji_diss);                      
+            obj.drhoj(obj.Icomp,:) = obj.drhoj(obj.Icomp,:) ...
+                                        + obj.drhoj_diss(obj.Icomp,:);
+
+            
+            %% viscosity - dissipative velocity - Iason %h constant!             
+             v_sig_force = (0.5 *(obj.cj(obj.Ii)+obj.cj(obj.Ij))...
+                    - 0.5*beta_viscosity*vijxijh)...
+                   .*(vijxijh<=0); 
+             %compute the fluxes
+             qFj_diss_ij(obj.active_k_pij,:)  = ...
+                 ((obj.mj(obj.Ii) .* obj.mj(obj.Ij).* ...
+                 alpha_viscosity .*v_sig_force .* vijxijh) ./...
+                 rho_ij_bar... bar(rho)
+                 .*obj.dWij)...   
+                 *ones(1,obj.dim)...
+                 .*obj.xij_h(obj.active_k_pij,:);
+              % spread flux onto nodes
+              obj.Fj_diss = obj.AedgesXj * qFj_diss_ij;
+              obj.Fj_tot(obj.Icomp,:) = obj.Fj_tot(obj.Icomp,:)...
+                                        + obj.Fj_diss(obj.Icomp,:);
+
+            if ~obj.isothermal
+                %% thermal conductivity (Zizis2014)
+
+                %approach 1 (remove vijxijh<=0 in qrho_ij_diss!)               
                 % zizis:
-                cj_bar     = (obj.cj(obj.Ii)   + obj.cj(obj.Ij)  )/2;
-%                 v_sig_energy = cj_bar;   
+    %           v_sig_energy = cj_bar;   
                 % price:
                 v_sig_energy = (abs(obj.pj(obj.Ii)-obj.pj(obj.Ij))./rho_ij_bar).^0.5;
-                
-                v_sig_force  = obj.v_sig;
-                % reset vectors
-                obj.dej_diss  = 0*obj.dej_diss; 
-                qe_ij_diss = zeros(size(obj.pij,1),1);
-                qe_ji_diss = zeros(size(obj.pij,1),1);
-                qe_ij_sym  = zeros(size(obj.pij,1),1);
 
+                % compute fluxes :
+                     % change of kinetic energy
                 qe_ij_sym(obj.active_k_pij,:) = -0.5* alpha_viscosity*...
                     obj.mj(obj.Ij)./ rho_ij_bar .* v_sig_force.*...
                     vijxijh.^2.*obj.dWij;
-                    
-                % compute fluxes
+                    % thermal conductivity
                 qe_ij_diss(obj.active_k_pij,:) = -alpha_energy* ... % i-> j %hi
                     v_sig_energy.*obj.mj(obj.Ij).*...
                     (obj.ej(obj.Ii)-obj.ej(obj.Ij))./...
@@ -1332,20 +1327,8 @@ classdef sph_particles < handle
                 obj.dej_diss = ( obj.AedgesXj * qe_ij_sym +...
                                   (obj.AedgesXj>0) * qe_ij_diss +...
                                   (obj.AedgesXj<0) * qe_ji_diss);  
-
-            end
-            %% -------------------------
-
-            % dissipative mass flux
-            comp_diss_mass(obj)
-            obj.drhoj(obj.Icomp,:) = obj.drhoj(obj.Icomp,:) + obj.drhoj_diss(obj.Icomp,:);
-            % forces
-            comp_diss_force(obj)
-            obj.Fj_tot(obj.Icomp,:) = obj.Fj_tot(obj.Icomp,:) + obj.Fj_diss(obj.Icomp,:);
-            % energy
-            if ~obj.isothermal
-                comp_diss_energy(obj)
-                obj.dej(obj.Icomp,:)     = obj.dej(obj.Icomp,:) + obj.dej_diss(obj.Icomp,:);
+                obj.dej(obj.Icomp,:)   = obj.dej(obj.Icomp,:) +...
+                                            obj.dej_diss(obj.Icomp,:);
             end
         end
         %%                

@@ -519,7 +519,7 @@ classdef sph_IO < handle
                    style   = obj.plot_style.v;
                elseif quantity == 'f'
                    name = 'F-total'; %todo plot components
-                   dat_name = 'F_total';
+                   dat_name = 'Fj_tot';
                    limaxes = obj.fixaxes.f;
                    style   = obj.plot_style.f;
                elseif quantity == 'e'
@@ -563,7 +563,7 @@ classdef sph_IO < handle
                    if quantity == 'x'
                       plot_scatter(x(:,1),x(:,2),mat); 
                       axis equal
-                   elseif any(quantity == 'pde') %perssure, density, energy -> scalar
+                   elseif any(quantity == 'pdem') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
                             plot_trisurf(x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
