@@ -282,7 +282,7 @@ classdef sph_IO < handle
             
             mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
             if ~isempty(mom_norm_diss)
-                plot(obj.con_dt,mom_norm_diss);                  
+                plot(obj.con_dt,mom_norm_diss,':');                  
                 leg = [leg;'|I_{diss}|'];
             end
            
@@ -296,13 +296,13 @@ classdef sph_IO < handle
             if ~isempty(obj.con_e_pot) && ~isempty(obj.con_e_kin) && ~any(obj.con_e_kin==0)                
                 plot(obj.con_dt,obj.con_e_pot,...
                      obj.con_dt,obj.con_e_kin,...
-                     obj.con_dt,obj.con_e_pot+obj.con_e_kin);  
+                     obj.con_dt,obj.con_e_pot+obj.con_e_kin,'--');  
                  leg = ['e_{pot}  ';'e_{kin}  ';'e_{tot}  '];
                  if ~isempty(obj.con_e_pot_diss)
                      hold on;
-                     plot(obj.con_dt,obj.con_e_pot_diss,...
-                        obj.con_dt,obj.con_e_kin_diss,...
-                        obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss); 
+                     plot(obj.con_dt,obj.con_e_pot_diss,':',...
+                        obj.con_dt,obj.con_e_kin_diss,':',...
+                        obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
                         leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
                  end
                  legend (leg);

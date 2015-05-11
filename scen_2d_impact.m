@@ -20,7 +20,7 @@ ps.exp_settings.tweakmass = false;
 % IO
 ps.plot_dt = 1e-6;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'pex';%vpd';
+ps.plot_quantity = '';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
@@ -30,6 +30,8 @@ ps.write_data = false;
 ps.output_name ='data/impact';
 
 %% material parameter
+ps.art_diss_para.alpha_energy = 0;
+
 
 %general
 ps.Omega = [-0.1,0.2;  %x
@@ -81,8 +83,7 @@ ps.add_geometry(omega_geo, rho0, v0, c0)
 %% -----------------------------------------------------
 % generate particles
 ps.create_geometry;
-%% disp data:
-dispdata(ps);
+%dispdata(ps);
 
 %% create particle class
 obj_particles = sph_particles(ps);

@@ -1298,8 +1298,13 @@ classdef sph_particles < handle
                          ,2);
                 rho_ij_bar = (obj.rhoj(obj.Ii) + obj.rhoj(obj.Ij))/2;
                 %approach 1 (remove vijxijh<=0 in qrho_ij_diss!)
+               
+                % zizis:
                 cj_bar     = (obj.cj(obj.Ii)   + obj.cj(obj.Ij)  )/2;
-                v_sig_energy = cj_bar;   
+%                 v_sig_energy = cj_bar;   
+                % price:
+                v_sig_energy = (abs(obj.pj(obj.Ii)-obj.pj(obj.Ij))./rho_ij_bar).^0.5;
+                
                 v_sig_force  = obj.v_sig;
                 % reset vectors
                 obj.dej_diss  = 0*obj.dej_diss; 
