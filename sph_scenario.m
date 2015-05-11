@@ -35,10 +35,9 @@ classdef sph_scenario < handle
         %bc
         damping_area % [lower-left point, upper-right point]^n
         mirrorParticlesj
-        bc;       %'p1';'p2;   for noflow, two points on boudary
-                  %'mirrorParticlesj' for no-reflecting
+        bc;       %'p1';'p2'; points on the boundary line 
                   %'outer_normal'
-                  %'damping_area'
+                  %'damping_area' (experimantal)
         
         %% material parameter
         rho0j      % density
@@ -47,6 +46,8 @@ classdef sph_scenario < handle
         cj
         beta      % for surface tension (scalar)
         mu        % for dissipation
+        art_diss_para  % parameters for artificial dissipation (alpha_mass, alpha_viscosity, beta_viscosity, alpha viscosity)
+        
         
         % experimantal settings (struct)
         exp_settings
@@ -57,14 +58,15 @@ classdef sph_scenario < handle
         %% IO
         % output
         write_data
-        save_dt   %timestep for saving the data
+        save_dt             %timestep for saving the data
         output_name        
        
         % some plotting properties
         plot_dt         % plotting timestep
-        plot_style       % 1D;x: scatter  
+        plot_style       % 1D - scatter  
                          % 2D - scalar: trisurf | patches; field: quiver
-        plot_quantity    %which quantity shall be plottet v-velocity, x-position, p-pressure, d-density, f-forces
+        plot_quantity    %which quantity shall be plottet: eg 'xe' for position and energy
+         % v-velocity, x-position, p-pressure, d-density, f-forces, m-massflux, e-energy
         fixaxes         %struct to define the axes    
         %%        
         Neval           % amount of evaluation points 
@@ -93,7 +95,10 @@ classdef sph_scenario < handle
 
            obj.beta = 0; %material dependent!
            obj.mu   = 0;
-
+           obj.art_diss_para = struct('alpha_mass',0.3,...
+                                      'alpha_viscosity',1,...
+                                      'beta_viscosity',2,...
+                                      'alpha_energy',0);
            obj.geo = struct([]);
 
            obj.geo_noise = 0;
@@ -104,6 +109,7 @@ classdef sph_scenario < handle
            obj.plot_style = struct('x','scatter',...              
                                    'p','patches',...
                                    'd','patches',...
+                                   'm','quiver',...
                                    'v','quiver',...
                                    'f','quiver',...
                                    'e','patches');
@@ -114,7 +120,7 @@ classdef sph_scenario < handle
            obj.movie_name = 'out';
            obj.write_data = false; 
            obj.output_name ='data/data_out';
-           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'f',[],'e',[]);
+           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'m',[],'f',[],'e',[]);
            obj.bc      = struct([]);
            obj.exp_settings = struct(...
                                      'tweakmass',false...  

@@ -10,7 +10,7 @@ input_name1 = '../../../../Desktop/out-hvi';
 
 ps1 = sph_scenario(input_name1);
 
-ps1.plot_quantity = 'vpd';
+ps1.plot_quantity = 'vpde';
 
 
 %
