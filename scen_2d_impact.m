@@ -12,15 +12,15 @@ ps.dtfactor = 0.5;
 ps.tend     = 1e-5;    
 ps.eta      = 1.2;     
 ps.set_kernel('Wendland');
-ps.EOS     = 'ISO';
-ps.scheme   = 'm';
-ps.h_const  = true;
+ps.EOS     = 'MG';
+ps.scheme   = 'v';
+ps.h_const  = false;
 ps.exp_settings.tweakmass = false;
 
 % IO
 ps.plot_dt = 1e-6;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'mf';%vpd';
+ps.plot_quantity = '';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
@@ -31,7 +31,7 @@ ps.output_name ='data/impact';
 
 %% material parameter
 % ps.art_diss_para.alpha_mass = 0;
-%ps.art_diss_para.alpha_energy = 0;
+ps.art_diss_para.alpha_energy = 0;
 % ps.art_diss_para.alpha_viscosity = 0;
 % ps.art_diss_para.beta_viscosity = 0;
 

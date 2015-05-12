@@ -26,7 +26,7 @@ ps.exp_settings.tweakmass = false;
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = '';  %p
+ps.plot_quantity = 'v';  %p
 ps.fixaxes.v = [-0.005, 0.005];
 ps.fixaxes.p = [-0.005, 0.005];
 ps.fixaxes.d = [1-1e-1 ,1+1e-1 ];
@@ -39,7 +39,7 @@ ps.output_name ='data/riemann_boun_mass';
 rho0 = 1;     % density
 c0   = 1.0; 
 
-ps.art_diss_para.alpha_energy = 1;
+ps.art_diss_para.alpha_energy = 0;
 %% domain         
 ps.Omega = [-1.5, 1.5]; 
 
