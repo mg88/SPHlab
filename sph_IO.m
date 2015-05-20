@@ -209,11 +209,11 @@ classdef sph_IO < handle
             
             %energy:
             if data.dim==2
-                norm_vj_sqrt = (data.vj_half(data.Iin,1).^2 + data.vj_half(data.Iin,2).^2);
+                norm_vj_sq = (data.vj_half(data.Iin,1).^2 + data.vj_half(data.Iin,2).^2);
             else
-                norm_vj_sqrt = data.vj_half(data.Iin,1).^2;
+                norm_vj_sq = data.vj_half(data.Iin,1).^2;
             end
-            e_kin = 0.5 .* data.mj(data.Iin).* norm_vj_sqrt;
+            e_kin = 0.5 .* data.mj(data.Iin).* norm_vj_sq;
             e_pot = data.mj(data.Iin).*data.ej_half(data.Iin);
             obj.con_e_kin =[obj.con_e_kin;
                                   sum(e_kin)];
@@ -224,20 +224,22 @@ classdef sph_IO < handle
             if (~isempty(data.Ighost) && data.compGhost)
                 %dv = data.vj(data.Ighost) - data.IOdata.vjghost;
                 if data.dim==2
-                    norm_vj_sqrt = (data.vj_half(data.Ighost,1).^2 + data.vj_half(data.Ighost,2).^2);
-                    norm_vj_sqrt_prev = (data.IOdata_h.vjghost(:,1).^2 + data.IOdata_h.vjghost(:,2).^2);
+                    norm_vj_sq      = data.vj_half(data.Ighost,1).^2 +...
+                                      data.vj_half(data.Ighost,2).^2;
+                    norm_vj_sq_prev = data.IOdata_h.vjghost(:,1).^2 + ...
+                                      data.IOdata_h.vjghost(:,2).^2;
                 else
-                    norm_vj_sqrt = data.vj_half(data.Ighost,1).^2;
-                    norm_vj_sqrt_prev = data.IOdata_h.vjghost(:,1).^2;
+                    norm_vj_sq      = data.vj_half(data.Ighost,1).^2;
+                    norm_vj_sq_prev = data.IOdata_h.vjghost(:,1).^2;
                 end
                 
-                e_kin_diss      = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt;
-                e_kin_diss_prev = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt_prev;                
-                e_kin_diss_diff =  e_kin_diss - e_kin_diss_prev;
+                e_kin_ghost      = 0.5 .* data.mj(data.Ighost).* norm_vj_sq;
+                e_kin_ghost_prev = 0.5 .* data.mj(data.Ighost).* norm_vj_sq_prev;                
+                e_kin_ghost_diff = e_kin_ghost - e_kin_ghost_prev;
                 
-                e_pot_diss      = data.ej(data.Ighost).*data.mj(data.Ighost);
-                e_pot_diss_prev = data.IOdata_h.ejghost.*data.mj(data.Ighost);
-                e_pot_diss_diff = e_pot_diss - e_pot_diss_prev;
+                e_pot_ghost      = data.ej(data.Ighost).*data.mj(data.Ighost);
+                e_pot_ghost_prev = data.IOdata_h.ejghost.*data.mj(data.Ighost);
+                e_pot_ghost_diff = e_pot_ghost - e_pot_ghost_prev;
                 
 
                 if isempty(obj.con_e_kin_diss)
@@ -249,9 +251,9 @@ classdef sph_IO < handle
                 end
 
                 obj.con_e_kin_diss =[obj.con_e_kin_diss;
-                                      sum(e_kin_diss_diff)+previous_kin];
+                                      sum(e_kin_ghost_diff)+previous_kin];
                 obj.con_e_pot_diss =[obj.con_e_pot_diss;
-                                     sum(e_pot_diss_diff)+previous_pot];
+                                      sum(e_pot_ghost_diff)+previous_pot];
             end
         end
         %%
@@ -326,7 +328,7 @@ classdef sph_IO < handle
                         obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
                      leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
                      plot(obj.con_dt,obj.con_e_pot+obj.con_e_kin+...
-                                     obj.con_e_pot_diss+obj.con_e_kin_diss,'k-.');
+                                     +(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
                      leg = [leg;'sum(e)   '];
                  end
                  legend (leg);
@@ -416,8 +418,7 @@ classdef sph_IO < handle
                                     .* dat(pij_eval(II,2),:)),...
                                     1); %sum all rows
            end
-        end
-        
+        end        
         %% %%%  Plotting functions %%% %%
         function plot_data(obj,obj_p,A_quantities)
             %% some functions
@@ -627,7 +628,7 @@ classdef sph_IO < handle
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
-                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity)                 
+                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end

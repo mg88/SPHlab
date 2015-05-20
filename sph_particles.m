@@ -318,27 +318,27 @@ classdef sph_particles < handle
              if ~isempty(obj.bc)
                 BC(obj)                 
              end
-             
+
              if obj.compGhost
                  obj.IOdata_h.vjghost   = obj.vj_half(obj.Ighost,:);             
                  obj.IOdata_h.ejghost   = obj.ej_half(obj.Ighost);
                  obj.IOdata_h.rhojghost = obj.rhoj_half(obj.Ighost);                               
-                 obj.IOdata.vjghost   = obj.vj(obj.Ighost,:);             
-                 obj.IOdata.ejghost   = obj.ej(obj.Ighost);
-                 obj.IOdata.pjghost   = obj.pj(obj.Ighost,:);             
-                 obj.IOdata.rhojghost = obj.rhoj(obj.Ighost);
+                 obj.IOdata.vjghost     = obj.vj(obj.Ighost,:);             
+                 obj.IOdata.ejghost     = obj.ej(obj.Ighost);
+                 obj.IOdata.pjghost     = obj.pj(obj.Ighost,:);             
+                 obj.IOdata.rhojghost   = obj.rhoj(obj.Ighost);
              end
 
-
              search_neighbours(obj);                                                   
-             
+             % mass, momentum and energy fluxes:
              comp_kernel(obj)              
              comp_forces(obj)             
              comp_dRho(obj)    
+             
              if ~obj.isothermal
                 comp_de(obj)                             
              end       
-             comp_dissipation(obj) %mass, forces, energy
+             comp_dissipation(obj) %mass, momentum, energy
              
              %%% set very small forces to zero
 %              eps=1e-12; -> violates conservation!
@@ -1161,8 +1161,7 @@ classdef sph_particles < handle
                             .*obj.rhoj/1;
             end
             %% ------------------
-           
-            
+                       
             if ~obj.distances_uptodate
                 comp_distances(obj);
             end
@@ -1263,7 +1262,7 @@ classdef sph_particles < handle
                 error('selected scheme is not supported');
             end
             obj.Fj_tot(obj.Icomp,:) = obj.Fj_int(obj.Icomp,:);
-            
+
             %physical dissipation
             if obj.mu ~=0
                 comp_Fj_phy_diss(obj);
@@ -1509,7 +1508,7 @@ classdef sph_particles < handle
         function BCnrm (obj,iboun)
             %%
             function d = distanceToParticles(x,xborder,outer_normal)
-                borderline = mean(xborder); 
+                borderline = mean(xborder);                 
                 if size(x,2) == 1
                     d = abs( x - borderline);
                 else
@@ -1526,40 +1525,35 @@ classdef sph_particles < handle
             %%
             
             if obj.firststep %search for the boundary particles
-                [~,obj.bc(iboun).kb] = min(obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2));
-                
+
+                dx = mean(obj.Vj)^(1/obj.dim);
+                obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< dx;
                 
                 % temp
                obj.bc(iboun).rho_ref = obj.rhoj(obj.bc(iboun).kb);
                obj.bc(iboun).p_ref   = obj.pj(obj.bc(iboun).kb);
-               obj.bc(iboun).v_ref   = obj.vj(obj.bc(iboun).kb); 
+               obj.bc(iboun).v_ref   = obj.vj(obj.bc(iboun).kb,:); 
+               obj.bc(iboun).e_ref   = obj.ej(obj.bc(iboun).kb); 
 
             end
+            
             kb = obj.bc(iboun).kb;
+            ki = find(kb==0); 
 
-
-%                     % tweak 
-%                     if obj.firststep
-%                          obj.hj(kb)=obj.hj(kb)*1;
-%                          disp ('change h on the boundary!!')
-%                     end
-
-            ki = find(kb~=obj.Iin);  %ki = obj.Iin;
             outer_normal = obj.bc(iboun).outer_normal;
 
             %change of sign: (set this values to 1 for second
             %approach - only mirroring the particles)
             if obj.dim == 1
-                v0 = 0;
                 v_factor = -1;
             else
-                v0= [0,0];
                 v_factor = [-1,-1];
             end
             p_factor = -1;
-%                     p0=boun.pjref;  %1;%obj.pj(kb);
-            e0   = obj.bc(iboun).ejref;
-            rho0 = obj.bc(iboun).rhojref;
+            v0   =  obj.bc(iboun).v_ref(1,:);
+            e0   =  obj.bc(iboun).e_ref(1,:);
+            p0   =  obj.bc(iboun).p_ref(1,:);
+            rho0 =  obj.bc(iboun).rho_ref(1,:);
             j_to_look_at = obj.Iin(ki); %all particles
             % can probably be improved when taking the cell structure into
             % account
@@ -1600,39 +1594,43 @@ classdef sph_particles < handle
             % or no adjustment    
             
             if ~isempty(Imirror)
-                obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,e0,m_factor,v_factor,p_factor);
-                obj.comp_volume();
-                obj.comp_pressure();
-            
+                obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,p0,e0,m_factor,v_factor,p_factor);
 
                 %%
-                % use characteristic:
-                rho_ref =obj.bc(iboun).rho_ref;
-                v_ref = obj.bc(iboun).v_ref;
-                p_ref = obj.bc(iboun).p_ref;
-                I = kb;
-                J1 = -obj.cj(I).^2 .*(obj.rhoj(I) - rho_ref)...
+                if obj.dim == 1
+%                     obj.comp_volume();
+                    obj.comp_pressure();
+                    
+                    % use characteristic:
+                    rho_ref =obj.bc(iboun).rho_ref;
+                    v_ref = obj.bc(iboun).v_ref;
+                    p_ref = obj.bc(iboun).p_ref;
+                    I = kb;
+                    J1 = -obj.cj(I).^2 .*(obj.rhoj(I) - rho_ref)...
+                        + (obj.pj(I) - p_ref) *obj.bc(iboun).outer_normal;
+                    J2 = obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
+                        + (obj.pj(I) - p_ref)* obj.bc(iboun).outer_normal;
+
+                    J3 = - obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
                     + (obj.pj(I) - p_ref) *obj.bc(iboun).outer_normal;
-                J2 = obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
-                    + (obj.pj(I) - p_ref)* obj.bc(iboun).outer_normal;
-
-                J3 = - obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
-                + (obj.pj(I) - p_ref) *obj.bc(iboun).outer_normal;
-%                 J1=0;
-%                 J2=0;
-                J3=0;
-
-                NN = size(Imirror,1);                   
-                Ig = obj.Ighost(end-NN+1:end);            
-                obj.rhoj(Ig) = rho_ref + ...
-                    1./(obj.c0j(Ig).^2).*(-J1+0.5*J2+0.5*J3);
-                obj.vj(Ig,:) = v_ref + ...
-                    1./(2*obj.c0j(Ig).*obj.rhoj(Ig)) * (J2 - J3);
                 
-                % pressure is computed with the EOS
-                obj.pj(Ig,:) = p_ref+...
-                    0.5*(J2+J3);
-                
+                    %switch
+                    if obj.vj(kb)*obj.bc(iboun).outer_normal < 0 %inflow
+                        J1=0;
+                        J2=0;
+                    else
+                        J3=0;
+                    end
+
+                    NN = size(Imirror,1);                   
+                    Ig = obj.Ighost(end-NN+1:end);            
+                    obj.rhoj(Ig) = rho_ref + ...
+                        1./(obj.c0j(Ig).^2).*(-J1+0.5*J2+0.5*J3);
+                    obj.vj(Ig,:) = v_ref + ...
+                        1./(2*obj.c0j(Ig).*obj.rhoj(Ig)) * (J2 - J3)*obj.bc(iboun).outer_normal;                
+                    obj.pj(Ig,:) = p_ref+...
+                        0.5*(J2+J3);
+                end
 % ----------------------                
 %                 a= obj.pj(Ig,:);
 %                   obj.comp_pressure();
@@ -1650,6 +1648,7 @@ classdef sph_particles < handle
             outer_normal = boun.outer_normal;
             v0   = zeros(1,obj.dim);
             e0   = 0;
+            p0   = 0;
             rho0 = 0;
             m_factor = 1;
             p_factor  = 1;
@@ -1677,7 +1676,7 @@ classdef sph_particles < handle
             Imirror       = obj.Iin(Imirror_local);                
             
             if ~isempty(Imirror)
-                obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,e0,m_factor,v_factor,p_factor);
+                obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,p0,e0,m_factor,v_factor,p_factor);
                 obj.comp_pressure();
             end
         end
@@ -1707,7 +1706,7 @@ classdef sph_particles < handle
             obj.Imaterial_with_boun = obj.Imaterial;              
         end
         %%
-        function mirrorParticles (obj,Imirror,d,outer_normal,rho0,v0,e0,m_factor,v_factor,p_factor)            
+        function mirrorParticles (obj,Imirror,d,outer_normal,rho0,v0,p0,e0,m_factor,v_factor,p_factor)            
             %add boundaries:            
 
             NN = size(Imirror,1);                   
@@ -1719,13 +1718,13 @@ classdef sph_particles < handle
                       obj.Xj(Imirror,:) + 2*d*outer_normal; 
 
             obj.vj (obj.N+(1:NN),:) = ...    -...
-                      2*v0*ones(NN,1)+obj.vj(Imirror,:).*(ones(NN,1)*v_factor);
+                      2*ones(NN,1)*v0+obj.vj(Imirror,:).*(ones(NN,1)*v_factor);
                   % ----
             obj.c0j (obj.N+(1:NN),:)   = obj.c0j(Imirror,:);
             obj.rho0j (obj.N+(1:NN),:) = obj.rho0j(Imirror,:);
             if obj.compGhost
                 obj.vj_half (obj.N+(1:NN),:) = ...    -...
-                          2*v0*ones(NN,1)+obj.vj_half(Imirror,:).*(ones(NN,1)*v_factor);
+                          2*ones(NN,1)*v0+obj.vj_half(Imirror,:).*(ones(NN,1)*v_factor);
                 obj.ej_half (obj.N+(1:NN),:) = ...    -...
                           2*e0+p_factor.*obj.ej_half(Imirror,:);
                 obj.rhoj_half (obj.N+(1:NN),:) = 2*rho0+p_factor.*obj.rhoj_half(Imirror,:);
@@ -1733,7 +1732,8 @@ classdef sph_particles < handle
                    %-----
             obj.ej (obj.N+(1:NN),:) = ... obj.ej(Imirror)
                         2*e0+p_factor.*obj.ej(Imirror);                          
-            obj.pj (obj.N+(1:NN),:) = zeros(NN,1);%...                            
+            obj.pj (obj.N+(1:NN),:) = ...
+                2*p0+p_factor.*zeros(NN,1).*obj.pj(Imirror);%...                            
 
             obj.mj (obj.N+(1:NN),:) = m_factor.*obj.mj(Imirror);
 
@@ -1744,7 +1744,7 @@ classdef sph_particles < handle
             obj.cj (obj.N+(1:NN),:) = ...
                       obj.cj(Imirror); 
             obj.rhoj (obj.N+(1:NN),:) = ...
-                      2*rho0+p_factor.*obj.rhoj(Imirror);
+                      obj.rhoj(Imirror);
             obj.N = size(obj.Xj,1);
 
             obj.Imaterial_with_boun=[obj.Imaterial_with_boun;
@@ -1754,7 +1754,6 @@ classdef sph_particles < handle
                 obj.Icomp = [obj.Iin; obj.Ighost];                
             end            
         end  
-
         %%
         function checkDataOnline(obj)          
             %%---------------------

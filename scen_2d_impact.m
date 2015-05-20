@@ -9,10 +9,11 @@ ps.Ntot    = 10000;
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
-ps.tend     = 10e-5;    
+ps.tend     = 10e-5;   
+% ps.tpause   = 0;
 ps.eta      = 1.2;     
 ps.set_kernel('Wendland');
-ps.EOS     = 'MG';
+ps.EOS     = 'ISO';
 ps.scheme   = 'm';
 ps.h_const  = false;
 ps.exp_settings.tweakmass = false;
@@ -43,10 +44,10 @@ omega_geo = [0, 20e-3;     %x
            %  -225e-3,225e-3];%y 
 
 % set BC
-p1 = [0,omega_geo(2,1)]; %bottom
-p2 = [1,omega_geo(2,1)];
-outer_normal = [0,-1];
-ps.add_bc_nr(p1,p2,outer_normal);
+% p1 = [0,omega_geo(2,1)]; %bottom
+% p2 = [1,omega_geo(2,1)];
+% outer_normal = [0,-1];
+% ps.add_bc_nr(p1,p2,outer_normal);
 p1 = [0,omega_geo(2,2)]; % top
 p2 = [1,omega_geo(2,2)];
 outer_normal = [0,1];

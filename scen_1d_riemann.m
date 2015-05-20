@@ -5,11 +5,11 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot      = 400;
+ps.Ntot      = 200;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
 %  ps.dtfactor  = 0.02;
-ps.tend      = 2.25; 
+ps.tend      = 3; 
 % ps.tpause   = 0.9;%0.9:0.02:2;%1.0:0.2:3;
 ps.eta     = 1.2;     
 ps.set_kernel('Gauss');
@@ -30,12 +30,12 @@ ps.h_const = false;
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = 'dpve';  %p
+ps.plot_quantity = 'pv';  %p
 ps.fixaxes.v = [-0.005, 0.005];
 
 % ps.fixaxes.p = [0.995, 1.005];
 ps.fixaxes.p = [-3e-3, 3e-3];
-ps.fixaxes.d = [1-1e-3 ,1+1e-3 ];
+ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
 ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
 
