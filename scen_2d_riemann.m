@@ -15,7 +15,7 @@ ps.set_kernel('Wendland');
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
-ps.plot_quantity = 'xvpe';
+ps.plot_quantity = '';
 ps.plot_style.p = 'patches';% 'plot3';
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.005,0.005];
@@ -28,6 +28,11 @@ ps.output_name ='data/riemann2d_boun';
  %% material parameter
 rho0 = 1;   
 c0   = 1;
+
+%ps.art_diss_para.alpha_mass = 0;
+%ps.art_diss_para.alpha_energy = 0;
+%ps.art_diss_para.alpha_viscosity = 0;
+%ps.art_diss_para.beta_viscosity = 0;
 
 %% domain         
 ps.Omega = [-0.2,2.2  ;  %x
@@ -75,8 +80,8 @@ ps.add_bc_noflow(p1,p2,outer_normal);
 %% -----------------------------------------------------
 % generate particles
 ps.create_geometry;
-%% disp data:
-dispdata(ps);
+
+% dispdata(ps);
 
 %% create particle class
 obj_particles = sph_particles(ps);

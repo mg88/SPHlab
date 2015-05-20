@@ -8,6 +8,7 @@ classdef sph_scenario < handle
         dtfactor    % savetyfactor for timestepping with CFL      
         dt          % timestep (if empty, use CFL)
         tend        % Simulation time
+        tpause       % time to make a pause the simulation
         eta         % h=eta*dx
         kernel      % M4 | Gauss | Wendland
         kernel_cutoff  % r/h<=kernel_cutoff
@@ -55,6 +56,8 @@ classdef sph_scenario < handle
         % 
         g_ext    %gravity
 
+        %exact solution
+        exact_sol
         %% IO
         % output
         write_data
@@ -92,13 +95,16 @@ classdef sph_scenario < handle
            obj.h_const   = false;           
            obj.dt        = [];
            obj.dtfactor  = 0.5;
+           obj.tpause    = inf;
 
            obj.beta = 0; %material dependent!
            obj.mu   = 0;
-           obj.art_diss_para = struct('alpha_mass',0.3,...
+           obj.art_diss_para = struct('alpha_mass',0.5,... %Iason2014 (Spheric)
+                                      'beta_mass',1,...
                                       'alpha_viscosity',1,...
                                       'beta_viscosity',2,...
-                                      'alpha_energy',0);
+                                      'alpha_energy',1,...
+                                      'beta_energy',1);
            obj.geo = struct([]);
 
            obj.geo_noise = 0;
@@ -125,6 +131,8 @@ classdef sph_scenario < handle
            obj.exp_settings = struct(...
                                      'tweakmass',false...  
                                      );
+                                 
+           obj.exact_sol =[];
            %some initialization
            obj.Iin   = [];
            obj.Imaterial = [];
@@ -151,6 +159,11 @@ classdef sph_scenario < handle
                obj.write_data = false; 
                obj.output_name =[obj.output_name,'_new'];
            end
+           
+           
+           disp('---------------------------------');
+           disp('--------------SPH----------------');
+           disp('---------------------------------');
         end   
         
         %%
@@ -173,7 +186,7 @@ classdef sph_scenario < handle
            elseif strcmp(kernel, 'M4') %after violeau (M4 in Price)
                obj.kernel_cutoff = 2.5;
            elseif strcmp(kernel, 'Gauss')
-               obj.kernel_cutoff = 2;
+               obj.kernel_cutoff = 4;
            else
                error('Kernel not supported!');
            end
@@ -255,11 +268,38 @@ classdef sph_scenario < handle
             end
         end
         %%
-        function add_bc_nr(obj,p1,p2,outer_normal) %no reflecting bc
-            obj.bc(obj.iter_boun).type = 'nr';
+        function add_bc_nr(obj,p1,p2,outer_normal,rhojref,ejref) %no reflecting bc
+            if nargin <=4
+               rhojref=0;
+               ejref=0;
+            end
+            
+            obj.bc(obj.iter_boun).type = 'nr-m';
             obj.bc(obj.iter_boun).outer_normal = outer_normal;
             obj.bc(obj.iter_boun).p1 = p1; 
             obj.bc(obj.iter_boun).p2 = p2;
+            
+            obj.bc(obj.iter_boun).ejref = ejref;
+            obj.bc(obj.iter_boun).rhojref = rhojref;
+
+            obj.bc(obj.iter_boun).damping_area = [];
+            obj.iter_boun = obj.iter_boun +1;
+        end
+        %%
+        function add_bc_nrc(obj,p1,p2,outer_normal,rhojref,ejref) %no reflecting bc
+            if nargin <=4
+               rhojref=0;
+               ejref=0;
+            end
+            
+            obj.bc(obj.iter_boun).type = 'nr-c';
+            obj.bc(obj.iter_boun).outer_normal = outer_normal;
+            obj.bc(obj.iter_boun).p1 = p1; 
+            obj.bc(obj.iter_boun).p2 = p2;
+            
+            obj.bc(obj.iter_boun).ejref = ejref;
+            obj.bc(obj.iter_boun).rhojref = rhojref;
+
             obj.bc(obj.iter_boun).damping_area = [];
             obj.iter_boun = obj.iter_boun +1;
         end

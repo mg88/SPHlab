@@ -40,6 +40,8 @@ classdef sph_IO < handle
         t_last_plot
         t_last_save
      
+        %exact solution
+        exact_sol
     end
     
     methods
@@ -54,7 +56,8 @@ classdef sph_IO < handle
               obj.plot_dt       = obj_scen.plot_dt;
               obj.plot_style    = obj_scen.plot_style;
               obj.plot_quantity = obj_scen.plot_quantity;                                          
-              
+              obj.exact_sol     = obj_scen.exact_sol;                                          
+
               %% gridpoints to evaluate
               if obj_scen.Neval > 0
                   [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,obj_scen.Neval);
@@ -97,20 +100,22 @@ classdef sph_IO < handle
             if ~strcmp(obj.plot_quantity,'')  %plot only, if plotstlye is specified
                  obj.mfigure = figure;
                  set(gca,'DataAspectRatio',[1,1,1]);
-                 if length(obj.plot_quantity) > 3
-                        obj.mfigure.Units = 'normalized';
-                        figpos=obj.mfigure.Position;
-                        figpos(1)=0.1;
-                        figpos(3)=0.8;
-                        figpos(2)=0.1;
-                        figpos(4)=0.8;
-                        obj.mfigure.Position =figpos;
-                   elseif length(obj.plot_quantity) > 1 
-                        obj.mfigure.Units = 'normalized';
-                        figpos=obj.mfigure.Position;
-                        figpos(1)=0.1;
-                        figpos(3)=0.8;
-                        obj.mfigure.Position =figpos;
+                 if strcmp(get(0,'DefaultFigureWindowStyle'),'normal') %only when not docked
+                     if length(obj.plot_quantity) > 3
+                            obj.mfigure.Units = 'normalized';
+                            figpos=obj.mfigure.Position;
+                            figpos(1)=0.1;
+                            figpos(3)=0.8;
+                            figpos(2)=0.1;
+                            figpos(4)=0.8;
+                            obj.mfigure.Position =figpos;
+                       elseif length(obj.plot_quantity) > 1 
+                            obj.mfigure.Units = 'normalized';
+                            figpos=obj.mfigure.Position;
+                            figpos(1)=0.1;
+                            figpos(3)=0.8;
+                            obj.mfigure.Position =figpos;
+                     end
                  end
             end
 
@@ -128,9 +133,12 @@ classdef sph_IO < handle
             
         end
         %%
-        function do (obj, obj_particles)
+        function do (obj, obj_particles,force)
+            if nargin <3
+                force = false;
+            end
             %% plotting
-            if (((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
+            if force||(((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
                     && ~isempty(obj.plot_quantity))
                 plot_data (obj,obj_particles);
                 if obj.save_as_movie
@@ -141,8 +149,8 @@ classdef sph_IO < handle
             end  
             
             %% write output
-            if (((obj_particles.t-obj.t_last_save) > obj.plot_dt) ...
-                            && obj.write_data)
+            if (force||((obj_particles.t-obj.t_last_save) > obj.plot_dt)) ...
+                            && obj.write_data
                  write_hdf5(obj,obj_particles)
                 %name = ['data/out',num2str(obj_particles.dt),'.mat'];               
                 % save(name, 'obj_particles');   
@@ -155,6 +163,7 @@ classdef sph_IO < handle
         end       
         %%
         function finalize (obj)
+            
             %% close output
             
             %% movie
@@ -180,56 +189,55 @@ classdef sph_IO < handle
                             sum(massj)];
                         
             % conservation of momentum (particle inside)
-            momj  = massj*ones(1,data.dim) .* (data.vj(data.Iin,:));
+            momj  = massj * ones(1,data.dim) .* (data.vj_half(data.Iin,:));
             obj.con_momentum = [obj.con_momentum;...
                                 sum(momj,1)];
             
-            % dissipation of momentum                
-            if (data.dim==1 && ~isempty(data.Ighost)) % todo: 2d
-                % momentum captured by the ghost particles                
-                momj_diss = (data.vj(data.Ighost,:)-data.IOdata.vjghost).*data.rhoj(data.Ighost).*data.Vj(data.Ighost);
+            % dissipation of momentum  (at half step)          
+            if (~isempty(data.Ighost) && data.compGhost) 
+                momj_diss_add   = data.IOdata_h.vjghost.*(data.mj(data.Ighost)*ones(1,data.dim));                
+                momj_diss_after = data.vj_half(data.Ighost,:).*(data.mj(data.Ighost)*ones(1,data.dim));
+
                 if isempty(obj.con_momentum_diss) %time integration
-                    previous = 0; 
+                    previous = zeros(1,data.dim); 
                 else
-                    previous = obj.con_momentum_diss(end);
+                    previous = obj.con_momentum_diss(end,:);
                 end
                 obj.con_momentum_diss =[obj.con_momentum_diss;...
-                                        sum(momj_diss)+previous];    
+                                        sum(momj_diss_after-momj_diss_add,1)+previous];
             end
-            % energy after Modave 1/2mv^2 + pV
-%             ej = 0.5 * massj .* sum(data.vj.^2,2) + data.Vj.*data.pj.^2;
-%             obj.con_energy =[obj.con_energy;
-%                              sum(ej)];
-
+            
             %energy:
             if data.dim==2
-                norm_vj_sqrt = (data.vj(data.Iin,1).^2 + data.vj(data.Iin,2).^2);
+                norm_vj_sqrt = (data.vj_half(data.Iin,1).^2 + data.vj_half(data.Iin,2).^2);
             else
-                norm_vj_sqrt = data.vj(data.Iin,1).^2;
+                norm_vj_sqrt = data.vj_half(data.Iin,1).^2;
             end
             e_kin = 0.5 .* data.mj(data.Iin).* norm_vj_sqrt;
-            e_pot = data.mj(data.Iin).*data.ej(data.Iin);
+            e_pot = data.mj(data.Iin).*data.ej_half(data.Iin);
             obj.con_e_kin =[obj.con_e_kin;
                                   sum(e_kin)];
             obj.con_e_pot =[obj.con_e_pot;
                             sum(e_pot)];
                         
             % energy dissipation
-            if (data.dim==1 && ~isempty(data.Ighost)) %todo 2d
+            if (~isempty(data.Ighost) && data.compGhost)
                 %dv = data.vj(data.Ighost) - data.IOdata.vjghost;
                 if data.dim==2
-                    norm_vj_sqrt = (data.vj(data.Ighost,1).^2 + data.vj(data.Ighost,2).^2);
-                    norm_vj_sqrt_prev = (data.IOdata.vjghost(:,1).^2 + data.IOdata.vjghost(:,2).^2);
+                    norm_vj_sqrt = (data.vj_half(data.Ighost,1).^2 + data.vj_half(data.Ighost,2).^2);
+                    norm_vj_sqrt_prev = (data.IOdata_h.vjghost(:,1).^2 + data.IOdata_h.vjghost(:,2).^2);
                 else
-                    norm_vj_sqrt = data.vj(data.Ighost,1).^2;
-                    norm_vj_sqrt_prev = data.IOdata.vjghost(:,1).^2;
+                    norm_vj_sqrt = data.vj_half(data.Ighost,1).^2;
+                    norm_vj_sqrt_prev = data.IOdata_h.vjghost(:,1).^2;
                 end
                 
-                e_kin_diss = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt;
-                e_kin_diss_prev = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt_prev;
-                
+                e_kin_diss      = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt;
+                e_kin_diss_prev = 0.5 .* data.mj(data.Ighost).* norm_vj_sqrt_prev;                
                 e_kin_diss_diff =  e_kin_diss - e_kin_diss_prev;
-                e_pot_diss_diff = (data.ej(data.Ighost) - data.IOdata.ejghost).*data.mj(data.Ighost);
+                
+                e_pot_diss      = data.ej(data.Ighost).*data.mj(data.Ighost);
+                e_pot_diss_prev = data.IOdata_h.ejghost.*data.mj(data.Ighost);
+                e_pot_diss_diff = e_pot_diss - e_pot_diss_prev;
                 
 
                 if isempty(obj.con_e_kin_diss)
@@ -249,9 +257,9 @@ classdef sph_IO < handle
         %%
         function plot_conservation (obj)
             fig=figure;
-            nplot= 3; 
-            iplot = 1;
-            if diff(obj.con_mass== 0)                
+            nplot = 3; 
+            iplot = 1;            
+            if any(diff(obj.con_mass) ~= 0)  % plot only if change of mass occurs              
                 subplot(nplot,1,iplot)
                 iplot=iplot+1;
                 plot(obj.con_dt,obj.con_mass)
@@ -263,57 +271,75 @@ classdef sph_IO < handle
             
             %momentum
             subplot(nplot,1,iplot)
-             hold on;
+            grid on;
+            hold on;
             iplot=iplot+1;
             %components (in 2d)
-            dim=size(obj.con_momentum,2);            
+            dim = size(obj.con_momentum,2);            
             if dim ==1
-                plot(obj.con_dt,obj.con_momentum);   
-                mom_norm = abs(obj.con_momentum);
+                plot(obj.con_dt,obj.con_momentum); 
                 leg = 'I         ';
+                %dissipation:
+                if ~isempty(obj.con_momentum_diss)
+                    plot(obj.con_dt,obj.con_momentum_diss,':');   
+                    plot(obj.con_dt,obj.con_momentum_diss+obj.con_momentum,'k-.');   
+                    leg = [leg;'I_{diss}  ';'I_{tot}   '];
+                end
+                mom_norm = abs(obj.con_momentum);           
+                
             else
                 mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
                 plot(obj.con_dt,mom_norm);    
+                leg = '|I|       ';
+                %components:
                 for i = 1: dim
                     plot(obj.con_dt,obj.con_momentum(:,i)) %x
+                    leg = [leg;'I_{x',num2str(i),'}    '];
                 end
-                leg = ['|I|       ';'x         ';'y         '];
+                %dissipation:
+                mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
+                if ~isempty(mom_norm_diss)
+                    plot(obj.con_dt,mom_norm_diss,':');   
+                    plot(obj.con_dt,mom_norm_diss+mom_norm,'k-.');   
+                    leg = [leg;'|I_{diss}|';'|I_{tot}| '];
+                end
             end
             
-            mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
-            if ~isempty(mom_norm_diss)
-                plot(obj.con_dt,mom_norm_diss,':');                  
-                leg = [leg;'|I_{diss}|'];
-            end
+
            
             legend(leg);
-            title('evolution of momentum');
+            title('evolution of momentum (at half step)');
             xlabel('t'); ylabel('momentum ')
-            hold off;
             
             %energy
-            subplot(nplot,1,iplot)            
+            subplot(nplot,1,iplot)   
+            hold on;
+            grid on
             if ~isempty(obj.con_e_pot) && ~isempty(obj.con_e_kin) && ~any(obj.con_e_kin==0)                
                 plot(obj.con_dt,obj.con_e_pot,...
                      obj.con_dt,obj.con_e_kin,...
                      obj.con_dt,obj.con_e_pot+obj.con_e_kin,'--');  
                  leg = ['e_{pot}  ';'e_{kin}  ';'e_{tot}  '];
                  if ~isempty(obj.con_e_pot_diss)
-                     hold on;
                      plot(obj.con_dt,obj.con_e_pot_diss,':',...
                         obj.con_dt,obj.con_e_kin_diss,':',...
                         obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
-                        leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
+                     leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
+                     plot(obj.con_dt,obj.con_e_pot+obj.con_e_kin+...
+                                     obj.con_e_pot_diss+obj.con_e_kin_diss,'k-.');
+                     leg = [leg;'sum(e)   '];
                  end
                  legend (leg);
-                 title('energy');
+                 title('energy (at half step)');
             else
                 warning('cannot plot energy');
             end
-            %move figure to the left side
-            figpos=fig.Position;
-            figpos(2)=0;
-            fig.Position =figpos;
+            %move figure to the left side (only when not docked)
+            if strcmp(get(0,'DefaultFigureWindowStyle'),'normal')
+                figpos=fig.Position;
+                figpos(2)=0;
+                fig.Position =figpos;
+            end
             if ~isempty(mom_norm)
                 disp (['## relative dissipation of momentum = ',...
                     num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
@@ -370,6 +396,7 @@ classdef sph_IO < handle
            r = rij_eval ./ obj_p.hj(pij_eval(:,2));
            
            I = r < obj_p.kernel_cutoff; 
+           
            Wij_eval    = zeros(size(r));
            Wij_eval(I) = obj_p.fw(r(I))./ (obj_p.hj(pij_eval(I,2)).^obj_p.dim);
            
@@ -382,7 +409,6 @@ classdef sph_IO < handle
            dat =  dat.*(obj_p.Vj * ones(1,size(dat,2)));
            dat_eval = zeros(NN,size(dat,2));
            %add up everything
-               %       keyboard
 
            for k = 1:NN                
                 II = ismember(pij_eval(:,1),k);
@@ -395,16 +421,17 @@ classdef sph_IO < handle
         %% %%%  Plotting functions %%% %%
         function plot_data(obj,obj_p,A_quantities)
             %% some functions
-            function plot_scatter(x,dat,mat)
+            function p=plot_scatter(x,dat,mat)
                colo='gbkrmcyw';
                %each material gets his own color
+               
                for m = 1:size(mat,1)
                     I = mat(m,1):mat( m,2);
-                    plot(x(I),dat(I),'o','color',colo(mod(m,length(colo))+1),'MarkerFaceColor','auto'); 
+                    p(m)=plot(x(I),dat(I),'o','color',colo(mod(m,length(colo))+1),'MarkerFaceColor','auto'); 
                end                     
             end    
              
-            function plot_force(data)
+            function p=plot_force(data)
                 I=data.Icomp;
                 F_all = [data.Fj_tot(I), data.Fj_int(I), data.Fj_diss(I)];
                 F_leg = ['F_{tot}    ';'F_{int}    ';'F_{diss}   '];
@@ -417,15 +444,15 @@ classdef sph_IO < handle
                     F_leg = [F_leg; 'F_{ST}     '];
                 end
 
-                bar(data.Xj(I),F_all);
+                p=bar(data.Xj(I),F_all);
                 title('forces')
                 xlim([data.Omega(1) data.Omega(2)]);
                 legend(F_leg);
             end
             
-            function plot_massflux(data)
+            function p=plot_massflux(data)
                 I=data.Icomp;
-                bar(data.Xj(I),...
+                p=bar(data.Xj(I),...
                     [data.drhoj(I),data.drhoj_diss(I)]);
                 title('massflux')
                 xlim([data.Omega(1) data.Omega(2)]);
@@ -433,7 +460,7 @@ classdef sph_IO < handle
             end
             
            
-            function plot_patches(x,y,z,sizeOfCirlce,opacity)
+            function scatterPoints=plot_patches(x,y,z,sizeOfCirlce,opacity)
                 tt= 0:pi/10:2*pi;
                 rep_x = repmat(x',[size(tt,2),1]);
                 rep_y = repmat(y',[size(tt,2),1]);
@@ -446,18 +473,18 @@ classdef sph_IO < handle
                 alpha(scatterPoints,opacity);
             end 
 
-            function plot_trisurf(x,y,z,max_r)  
+            function p=plot_trisurf(x,y,z,max_r)  
                 xy   = complex(x,y);
                 tri    = delaunay(x,y);
                 e    = abs(xy(tri) - xy(circshift(tri,-1,2)));
                 goodt = all(e < max_r,2); %dxmedian(e(:)),2);
                 t2   = tri(goodt,:);
-                trisurf(t2,x,y,z)
+                p=trisurf(t2,x,y,z);
                 %trimesh(t2,x,y,z)
             end
                      
-            function dat_max=plot_field(x,dat)
-               quiver(x(:,1),...
+            function [dat_max,p]=plot_field(x,dat)
+               p=quiver(x(:,1),...
                          x(:,2),...
                          dat(:,1),...
                          dat(:,2));
@@ -470,7 +497,8 @@ classdef sph_IO < handle
            end
             
            if ~isempty(obj.mfigure)
-                figure(obj.mfigure);
+               %do not change the focos (silent update of the figure)
+                set(groot,'CurrentFigure',obj.mfigure)
            else
                figure %open new figure
            end
@@ -486,11 +514,11 @@ classdef sph_IO < handle
            x   = obj_p.Xj;
            t   = obj_p.t;
            mat = obj_p.Imaterial_with_boun;
-           title_additive = ['; t=',num2str(t),'; N= ',num2str(obj_p.N)];
+           title_additive = ['; t=',num2str(t,'%10.3e'),'; N= ',num2str(obj_p.N)];
            clf %clear figure
            
            for quantity = A_quantities;
-               subplot(nyplot,nxplot,iplot);
+               ab=subplot(nyplot,nxplot,iplot);
                hold on;
                if quantity == 'x'
                    dat_name = '';
@@ -539,17 +567,36 @@ classdef sph_IO < handle
                        plot_force(obj_p);
                    elseif quantity == 'm'
                        plot_massflux(obj_p);
-                   else      
+                   else                            
+                       % plot particles
+                       p = plot_scatter(x,obj_p.(dat_name),mat);                        
+                       pp   =p(1); % array of plot handles                       
+                       names={'SPH-data'}; % array of strings for legend
+                       
+                       % plot smoothed values
                        if ~isempty(obj.x_eval)
                            %evaluate 
                            dat_eval = obj.eval_ss(obj_p,dat_name);
 
-                           plot(obj.x_eval,dat_eval,'-')
-                           legend('smoothed values');
+                           p=plot(obj.x_eval,dat_eval,'-');
+                           pp=[pp;p];
+                           names=[names; 'smoothed values'];
                        end
-                       %plot particles
-                       plot_scatter(x,obj_p.(dat_name),mat); 
- 
+                       
+                       % exact solution:
+                       if ~isempty(obj.exact_sol)
+                           obj.exact_sol.compute(t,x);
+                           p=plot(x,obj.exact_sol.(dat_name),'r.');
+                           pp=[pp;p];
+                           names=[names; 'analytical solution'];
+                       end
+                       
+                       %initial state of ghost particle   
+                       if ~isempty(obj_p.IOdata.([dat_name,'ghost']))
+                            plot(x(obj_p.Ighost),obj_p.IOdata.([dat_name,'ghost']),'kx');                       
+                       end
+                       legend(pp, names);
+
                        %mark mirror particle
 %                        if ~isempty(obj_particles.bc)
 %                             plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
@@ -632,7 +679,16 @@ classdef sph_IO < handle
                        rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
                                  'EdgeColor',[0,1,0.5]);
                    end
-                   plot([boun.p1,boun.p1],a(3:4),'kx:');
+                   
+                   if strcmp(boun.type,'noflow')
+                        plot([boun.p1,boun.p1],a(3:4),'kx:');
+                   elseif strcmp (boun.type(1:2),'nr') && obj_p.dim==1
+                        plot([obj_p.Xj(boun.kb),obj_p.Xj(boun.kb)],a(3:4),'bx:');
+                   else
+                       error('No such boundary type to plot');
+                   end
+                       
+                   
                    axis(a);
                end
                 
@@ -790,7 +846,7 @@ classdef sph_IO < handle
                 obj_data.Imaterial_with_boun = [obj_data.Imaterial;
                                            max(max(obj_data.Imaterial)),N];
             end
-           
+           keyboard
           %  Gamma = readVariable('Gamma',filename,time_str);
           %  Gmod = readVariable('Gmod',filename,time_str);
           %  S = readVariable('S',filename,time_str);
