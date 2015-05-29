@@ -9,38 +9,39 @@ ps.Ntot    = 10000;
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
-ps.tend     = 10e-5;   
+ps.dt       = 2e-8;
+ps.tend     = 5e-5;   
 % ps.tpause   = 0;
 ps.eta      = 1.2;     
 ps.set_kernel('Wendland');
-ps.EOS     = 'ISO';
+ps.EOS     = 'MG';
 ps.scheme   = 'm';
 ps.h_const  = false;
 ps.exp_settings.tweakmass = false;
 
 % IO
-ps.plot_dt = 1e-6;   
+ps.plot_dt = 5e-6;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'p';%vpd';
+ps.plot_quantity = 'd';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
 %output
-ps.save_dt = 5e-4;
+ps.save_dt = 1e-5;
 ps.write_data = false;
-ps.output_name ='data/impact';
+ps.output_name ='data/impact_bc_particle';
 
 %% material parameter
 
 %general
 ps.Omega = [-0.1,0.1;  %x
-            -0.1,0.1]; %y  
+            -0.1,0.25]; %y  
 
 %data from LimeSPH-file        
 
 %% plate
 omega_geo = [0, 20e-3;     %x
-             -75e-3,75e-3];%y 
+             -75e-3,100e-3];%y 
            %  -225e-3,225e-3];%y 
 
 % set BC
@@ -51,7 +52,7 @@ omega_geo = [0, 20e-3;     %x
 p1 = [0,omega_geo(2,2)]; % top
 p2 = [1,omega_geo(2,2)];
 outer_normal = [0,1];
-ps.add_bc_nr(p1,p2,outer_normal);
+ps.add_bc('nrp',p1,p2,outer_normal);
 
 rho0 = 2785;   
 c0   = 5330; 
@@ -77,7 +78,7 @@ end
 p1 = [0,0];
 p2 = [1,0];
 outer_normal = [0,-1];
-ps.add_bc_noflow(p1,p2,outer_normal);
+ps.add_bc('noflow',p1,p2,outer_normal);
 ps.Omega(2,1)= -0.02;
 
 %% -----------------------------------------------------

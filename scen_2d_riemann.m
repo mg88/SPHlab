@@ -4,9 +4,9 @@
 close all; clear; clc;
 ps = sph_scenario();
 %% general parameter
-%ps.Ntot    = 2000;
-ps.Ntot    = [319,1680];
-ps.tend    = 1.6;   
+ps.Ntot    = 2000;
+% ps.Ntot    = [319,1680];
+ps.tend    = 2.7;   
 %ps.dtfactor  =0.1;
 
 ps.eta     = 1.2;     
@@ -15,8 +15,8 @@ ps.set_kernel('Wendland');
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
-ps.plot_quantity = '';
-ps.plot_style.p = 'patches';% 'plot3';
+ps.plot_quantity = 'xpve';
+ps.plot_style.p = 'trisurf';% 'plot3';patches
 ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.005,0.005];
 %ps.fixaxes.d = [1-1e-2,1+1e-2];
@@ -28,6 +28,7 @@ ps.output_name ='data/riemann2d_boun';
  %% material parameter
 rho0 = 1;   
 c0   = 1;
+ps.EOS     = 'MG';
 
 %ps.art_diss_para.alpha_mass = 0;
 %ps.art_diss_para.alpha_energy = 0;
@@ -35,8 +36,8 @@ c0   = 1;
 %ps.art_diss_para.beta_viscosity = 0;
 
 %% domain         
-ps.Omega = [-0.2,2.2  ;  %x
-            -0.3,0.3]; %y
+ps.Omega = [-0.5,2.5  ;  %x
+            -0.5,0.5]; %y
   
 %% active particles
 l  = 0;
@@ -64,18 +65,18 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0)
 p1 = [r,0];
 p2 = [r,1];
 outer_normal = [1,0];
-ps.add_bc_nr(p1,p2,outer_normal);
+ps.add_bc('nrc',p1,p2,outer_normal);
 
 %no-flow on bottom
 p1 =  [0,h1];
 p2 =  [1,h1];
 outer_normal = [0,-1];
-ps.add_bc_noflow(p1,p2,outer_normal);
+ps.add_bc('noflow',p1,p2,outer_normal);
 %no-flow on top
 p1 =  [0,h2];
 p2 =  [1,h2];
 outer_normal = [0,1];
-ps.add_bc_noflow(p1,p2,outer_normal);
+ps.add_bc('noflow',p1,p2,outer_normal);
 
 %% -----------------------------------------------------
 % generate particles

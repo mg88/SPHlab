@@ -268,49 +268,14 @@ classdef sph_scenario < handle
             end
         end
         %%
-        function add_bc_nr(obj,p1,p2,outer_normal,rhojref,ejref) %no reflecting bc
-            if nargin <=4
-               rhojref=0;
-               ejref=0;
-            end
-            
-            obj.bc(obj.iter_boun).type = 'nr-m';
+        function add_bc(obj,type,p1,p2,outer_normal) %type: nr-c,nr-m,nr-p,noflow
+            obj.bc(obj.iter_boun).type = type;
             obj.bc(obj.iter_boun).outer_normal = outer_normal;
             obj.bc(obj.iter_boun).p1 = p1; 
             obj.bc(obj.iter_boun).p2 = p2;
-            
-            obj.bc(obj.iter_boun).ejref = ejref;
-            obj.bc(obj.iter_boun).rhojref = rhojref;
 
             obj.bc(obj.iter_boun).damping_area = [];
-            obj.iter_boun = obj.iter_boun +1;
-        end
-        %%
-        function add_bc_nrc(obj,p1,p2,outer_normal,rhojref,ejref) %no reflecting bc
-            if nargin <=4
-               rhojref=0;
-               ejref=0;
-            end
-            
-            obj.bc(obj.iter_boun).type = 'nr-c';
-            obj.bc(obj.iter_boun).outer_normal = outer_normal;
-            obj.bc(obj.iter_boun).p1 = p1; 
-            obj.bc(obj.iter_boun).p2 = p2;
-            
-            obj.bc(obj.iter_boun).ejref = ejref;
-            obj.bc(obj.iter_boun).rhojref = rhojref;
-
-            obj.bc(obj.iter_boun).damping_area = [];
-            obj.iter_boun = obj.iter_boun +1;
-        end
-        %%
-        function add_bc_noflow(obj,p1,p2,outer_normal)
-            obj.bc(obj.iter_boun).type = 'noflow';
-            obj.bc(obj.iter_boun).p1 = p1;
-            obj.bc(obj.iter_boun).p2 = p2;
-            obj.bc(obj.iter_boun).outer_normal = outer_normal;
-            obj.bc(obj.iter_boun).damping_area = [];
-            obj.iter_boun = obj.iter_boun +1;            
+            obj.iter_boun = obj.iter_boun +1;           
         end
         
         %% % some geometry functions % %%

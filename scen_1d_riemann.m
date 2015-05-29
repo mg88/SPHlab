@@ -9,10 +9,10 @@ ps.Ntot      = 200;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
 %  ps.dtfactor  = 0.02;
-ps.tend      = 3; 
+ps.tend      = 2.8; 
 % ps.tpause   = 0.9;%0.9:0.02:2;%1.0:0.2:3;
 ps.eta     = 1.2;     
-ps.set_kernel('Gauss');
+ps.set_kernel('Wendland');
 
 ps.scheme  = 'm';
 ps.EOS     = 'ISO';
@@ -48,27 +48,24 @@ ps.output_name ='data/riemann_boun_mass';
 rho0 = 1;     % density
 c0   = 1.0; 
 
-
-
-ps.art_diss_para.alpha_mass = 0.5;
-ps.art_diss_para.alpha_energy = 0.5;
-ps.art_diss_para.beta_mass = 0;
-ps.art_diss_para.beta_viscosity = 0;
+% ps.art_diss_para.alpha_mass = 0.5;
+% ps.art_diss_para.alpha_energy = 0.5;
+% ps.art_diss_para.beta_mass = 0;
+% ps.art_diss_para.beta_viscosity = 0;
 %% domain         
 ps.Omega = [-2.7, 2.7]; 
 
 %% active particles
 xl=-1.5;
-xm=0.5;
+xm=0.3;
 xr=1.5;
-% %left
+%left
 omega_geo = [xl,-xm]; %x
-v0   = 0.00;
+v0   = -0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 % set BC
-ps.add_bc_nr(xl,0,-1,rho0,e0);
-% ps.add_bc_noflow(xl,0,-1);
-% ps.add_bc_noflow(-xm,0,-1);
+ps.add_bc('nrp',xl,0,-1);
+
 %middle
 omega_geo = [-xm,xm]; %x
 v0   = 0.004;
@@ -79,7 +76,7 @@ omega_geo = [xm,xr]; %x
 v0   = 0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 %% set BC
-ps.add_bc_nr(xr,0,1,rho0,e0);
+ps.add_bc('nrc',xr,0,1);
 % ps.add_bc_noflow(xr,0,1);
 
 % right %bigger particles:

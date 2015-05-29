@@ -328,7 +328,7 @@ classdef sph_IO < handle
                         obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
                      leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
                      plot(obj.con_dt,obj.con_e_pot+obj.con_e_kin+...
-                                     +(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
+                                     -(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
                      leg = [leg;'sum(e)   '];
                  end
                  legend (leg);
@@ -420,10 +420,21 @@ classdef sph_IO < handle
            end
         end        
         %% %%%  Plotting functions %%% %%
+        
+        function p=plot_trisurf(~,x,y,z,max_r)  
+            xy   = complex(x,y);
+            tri    = delaunay(x,y);
+            e    = abs(xy(tri) - xy(circshift(tri,-1,2)));
+            goodt = all(e < max_r,2); %dxmedian(e(:)),2);
+            t2   = tri(goodt,:);
+            p=trisurf(t2,x,y,z);
+            %trimesh(t2,x,y,z)
+        end  
+        %%
         function plot_data(obj,obj_p,A_quantities)
             %% some functions
             function p=plot_scatter(x,dat,mat)
-               colo='gbkrmcyw';
+               colo='gbkrmcy';
                %each material gets his own color
                
                for m = 1:size(mat,1)
@@ -474,15 +485,7 @@ classdef sph_IO < handle
                 alpha(scatterPoints,opacity);
             end 
 
-            function p=plot_trisurf(x,y,z,max_r)  
-                xy   = complex(x,y);
-                tri    = delaunay(x,y);
-                e    = abs(xy(tri) - xy(circshift(tri,-1,2)));
-                goodt = all(e < max_r,2); %dxmedian(e(:)),2);
-                t2   = tri(goodt,:);
-                p=trisurf(t2,x,y,z);
-                %trimesh(t2,x,y,z)
-            end
+
                      
             function [dat_max,p]=plot_field(x,dat)
                p=quiver(x(:,1),...
@@ -613,11 +616,11 @@ classdef sph_IO < handle
                       axis equal
                    elseif any(quantity == 'pdem') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
-                            plot_trisurf(x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
+                            plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
-                            view([-1,-1,1]);
+                            view([1,0.5,1]);
                             %view(2)
                             shading interp
                             if ~isempty(limaxes)
@@ -656,14 +659,14 @@ classdef sph_IO < handle
                title([name,title_additive]);
                title_additive='';
                %% plot additional info
-               plot_geometry(obj,obj_p);
+               draw_geometry(obj,obj_p,dat_name);
                iplot = iplot+1;
                hold off;
            end
            drawnow
         end          
         %%
-        function plot_geometry(~,obj_p)
+        function draw_geometry(~,obj_p,dat_name)
            mark_point = false;
            draw_cells = false;
            draw_connectivity = false;                %only 2d
@@ -695,19 +698,35 @@ classdef sph_IO < handle
                 
            elseif obj_p.dim == 2
                
-               %axis('equal')                   
+               %axis('equal')   
+              a = axis;
                %Omega:
-               rectangle('Position',[obj_p.Omega(1,1),obj_p.Omega(2,1),...
-                   obj_p.Omega(1,2)-obj_p.Omega(1,1),obj_p.Omega(2,2)-obj_p.Omega(2,1)]); %boundary
+%                rectangle('Position',[obj_p.Omega(1,1),obj_p.Omega(2,1),...
+%                    obj_p.Omega(1,2)-obj_p.Omega(1,1),obj_p.Omega(2,2)-obj_p.Omega(2,1)]); %boundary
+               x1 = [obj_p.Omega(1,1), obj_p.Omega(2,1)];
+               x2 = [obj_p.Omega(1,2), obj_p.Omega(2,1)];
+               x3 = [obj_p.Omega(1,2), obj_p.Omega(2,2)];
+               x4 = [obj_p.Omega(1,1), obj_p.Omega(2,2)];
+               if size(a,2)>4 %->3d
+%                     z =a(5);
+                    z = mean(obj_p.(dat_name));
+               else
+                   z=0;
+               end
+               plot3( [x1(1) x2(1) x3(1) x4(1) x1(1)], [x1(2) x2(2) x3(2) x4(2) x1(2)], [z z z z z] )
                hold on
                for boun = obj_p.bc
                    a = axis;
-                   plot([boun.p1(1),boun.p2(1)],[boun.p1(2),boun.p2(2)],'kx:');
+                   e = [boun.p2(1)-boun.p1(1),boun.p2(2)-boun.p1(2)];
+                   e = e/norm(e);
+                   p1= boun.p1 +1000*e; %from "minus infinity to infinity"
+                   p2= boun.p2 -1000*e;
+                   plot3([p1(1),p2(1)],[p1(2),p2(2)],[z,z],'kx:');
                    axis(a);
                end
                %% draw connectivity
                if draw_connectivity               
-                   colo='gbkrmcyw';
+                   colo='gbkrmcy';
                    AiX=1:500:obj_p.N;
                    for kk = 1:length(AiX)
                        iX= AiX(kk);
@@ -847,7 +866,6 @@ classdef sph_IO < handle
                 obj_data.Imaterial_with_boun = [obj_data.Imaterial;
                                            max(max(obj_data.Imaterial)),N];
             end
-           keyboard
           %  Gamma = readVariable('Gamma',filename,time_str);
           %  Gmod = readVariable('Gmod',filename,time_str);
           %  S = readVariable('S',filename,time_str);
@@ -870,6 +888,7 @@ classdef sph_IO < handle
             writeVariable(filename,time,'x',obj_p.Xj(:,1));
             writeVariable(filename,time,'u',obj_p.vj(:,1));
             writeVariable(filename,time,'c',obj_p.cj);
+            writeVariable(filename,time,'e',obj_p.ej);
             writeVariable(filename,time,'c0',obj_p.c0j);
             writeVariable(filename,time,'rho',obj_p.rhoj);
             writeVariable(filename,time,'rho0',obj_p.rho0j);
