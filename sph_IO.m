@@ -412,11 +412,19 @@ classdef sph_IO < handle
            dat_eval = zeros(NN,size(dat,2));
            %add up everything
 
-           for k = 1:NN                
+           for k = 1:NN   %evaluate point for point             %Violeau (5.86)
                 II = ismember(pij_eval(:,1),k);
+                if sum(II) == 0
+                    continue
+                end
+                %normalization constant
+                sumW = sum(obj_p.Vj(pij_eval(II,2)).*Wij_eval(II));
+                if sumW == 0 % no data to sum up, so just let it be zero
+                    continue              
+                end
                 dat_eval(k,:) = sum((Wij_eval(II)* ones(1,size(dat,2))...
                                     .* dat(pij_eval(II,2),:)),...
-                                    1); %sum all rows
+                                    1)/sumW; %sum all rows
            end
         end        
         %% %%%  Plotting functions %%% %%
@@ -430,6 +438,56 @@ classdef sph_IO < handle
             p=trisurf(t2,x,y,z);
             %trimesh(t2,x,y,z)
         end  
+        %%
+        function p=plot_torus(~,Ar,Az,Ad)
+            warning('super slow')
+            keyboard
+            N = size(Ad,1);
+            for i=1:10:N
+                 d = Ad(i);
+                 r  = Ar(i);
+                 zz = Az(i);
+                 [u,v]=meshgrid(0:30:60);                 
+                 x=(r+d*cosd(v)).*cosd(u);
+                 y=(r+d*cosd(v)).*sind(u);
+                 z=d*sind(v)+zz;
+                 p=surfc(x,y,z);
+                 hold on
+                 disp([num2str(i),'/',num2str(N)]);
+            end
+        end
+        %%
+        function p=plot_ring(~,xx,yy)
+            N = size(xx,1);
+            Ntheta=20;
+            theta = linspace(0,pi/3,Ntheta);
+            for i=1:N 
+                r = abs(yy(i));
+                y = r*(cos(theta));
+                z = r*(sin(theta));
+                x = xx(i)*ones(Ntheta,1);
+                p=plot3(x,y,z,'-b');     
+                disp([num2str(i),'/',num2str(N)]);
+            end
+        end
+        %%
+        function p=plot_ringcloud(~,xx,yy,mat)
+           colo='gbkrmcy';
+           %each material gets his own color
+           Ntheta=20; %amount of points in the axis
+           Theta_minus = 0;
+           Theta_plus  = pi/2;
+           for m = 1:size(mat,1)
+                I = mat(m,1):mat( m,2);                
+                N=size(xx(I),1);
+                theta = linspace(Theta_minus,Theta_plus,Ntheta);
+                r = abs(yy(I));
+                y = reshape(r*(cos(theta)),1,N*Ntheta);
+                z = reshape(r*(sin(theta)),1,N*Ntheta);
+                x = reshape(xx(I)*ones(1,Ntheta),1,N*Ntheta);
+                p = plot3(x,y,z,'.','color',colo(mod(m,length(colo))+1));%,'MarkerFaceColor','auto');  
+           end
+        end
         %%
         function plot_data(obj,obj_p,A_quantities)
             %% some functions
@@ -612,22 +670,40 @@ classdef sph_IO < handle
                    end                   
                elseif obj_p.dim == 2
                    if quantity == 'x'
-                      plot_scatter(x(:,1),x(:,2),mat); 
-                      axis equal
+                      if strcmp (style,'ring')         
+                            plot_ring(obj,x(:,1),x(:,2));
+                            view([-0.3,-1,1]);                                
+                            axis equal
+                      elseif strcmp (style,'ringcloud')         
+                            plot_ringcloud(obj,x(:,1),x(:,2),mat);
+                            view([-0.3,-1,1]);                                
+                            axis equal
+                      elseif strcmp (style,'torus')         
+                            sizeOfCirlce = obj_p.hj;
+                            plot_torus(obj,x(:,1),x(:,2),sizeOfCirlce);
+                            if ~isempty(limaxes)
+                                 caxis(limaxes)
+                            end
+                            view([-0.3,-1,1]);                                
+                            axis equal 
+                      else %default
+                          plot_scatter(x(:,1),x(:,2),mat); 
+                          axis equal
+                      end
                    elseif any(quantity == 'pdem') %perssure, density, energy -> scalar
                         if strcmp (style,'trisurf')
                             plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
-                            view([1,0.5,1]);
+                            view([1,0.5,0.3]);
                             %view(2)
                             shading interp
                             if ~isempty(limaxes)
                                  zlim(limaxes)
                             end
                             colorbar 
-                            colormap jet
+                            colormap jet                      
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
@@ -707,7 +783,7 @@ classdef sph_IO < handle
                x2 = [obj_p.Omega(1,2), obj_p.Omega(2,1)];
                x3 = [obj_p.Omega(1,2), obj_p.Omega(2,2)];
                x4 = [obj_p.Omega(1,1), obj_p.Omega(2,2)];
-               if size(a,2)>4 %->3d
+               if size(a,2)>4 && ~isempty(dat_name)%->3d
 %                     z =a(5);
                     z = mean(obj_p.(dat_name));
                else

@@ -3,11 +3,11 @@
 
 close all; clear; clc;
 %input_name = 'data/impact';
-% input_name1 = 'data/impact_bc';
-% input_name2 = 'data/impact_org';
+input_name1 = 'data/impact_bc_short';
+input_name2 = 'data/impact_org';
 
-input_name1 = 'data/square3_org';
-input_name2 = 'data/square3_bc';
+% input_name1 = 'data/square3_org';
+% input_name2 = 'data/square3_bc';
 
 ps1 = sph_scenario(input_name1);
 ps2 = sph_scenario(input_name2);
@@ -16,7 +16,7 @@ ps2 = sph_scenario(input_name2);
 di = 1;
 
 var_name = 'pj';
-Neval   = 4000;
+Neval   = 2000;
 Nss = 2;
 ps1.Neval = Neval;
 ps2.Neval = Neval;
@@ -45,7 +45,7 @@ errfig=figure();
 data = h5info([input_name1,'.h5'],'/');
 
 Omega_compare = [ps1.Omega(1,:);     %x
-                 0,98e-3];%y 
+                 0,48e-3];%y 
              
 % offset = 1e-2; %border particles will differ form the influence of out of border particles
 % Omega_compare = ps2.geo.omega_geo +[offset,-offset;offset,-offset]; 

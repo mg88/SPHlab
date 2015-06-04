@@ -11,8 +11,8 @@ input_name1 = 'data/impact_bc';
 
 ps1 = sph_scenario(input_name1);
 
-ps1.plot_quantity = 'xvpde';
-ps1.plot_style.p = 'trisurf';
+ps1.plot_quantity = 'xp';
+ps1.plot_style.x = 'ringcloud';
 ps1.plot_style.e = 'trisurf';
 %
 % ps1.eta = 1.2;

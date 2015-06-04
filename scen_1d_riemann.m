@@ -10,18 +10,18 @@ ps.equalmass = false;
 % ps.dt        = 1e-5;
 %  ps.dtfactor  = 0.02;
 ps.tend      = 2.8; 
-% ps.tpause   = 0.9;%0.9:0.02:2;%1.0:0.2:3;
+% ps.tpause   = 1e-2;%0.9:0.02:2;%1.0:0.2:3;
 ps.eta     = 1.2;     
-ps.set_kernel('Wendland');
+ps.set_kernel('Gauss');
 
 ps.scheme  = 'm';
-ps.EOS     = 'ISO';
+ps.EOS     = 'MG';
 e0 = 0;
 % ps.EOS     = 'IdealGas53'; 
 % e0 = 1.5;
 
-ps.h_const = false;
-
+ps.h_const   = false;
+ps.compOmegaj = true;
 %experimental settings:
 % ps.exp_settings.tweakmass = true;
 
@@ -30,12 +30,11 @@ ps.h_const = false;
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = 'pv';  %p
-ps.fixaxes.v = [-0.005, 0.005];
-
+ps.plot_quantity = 'pve';  %p
+ps.fixaxes.v = [-0.05, 0.05];
 % ps.fixaxes.p = [0.995, 1.005];
-ps.fixaxes.p = [-3e-3, 3e-3];
-ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
+ps.fixaxes.p = [-3e-2, 3e-2];
+% ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
 ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
 
@@ -64,11 +63,11 @@ omega_geo = [xl,-xm]; %x
 v0   = -0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 % set BC
-ps.add_bc('nrp',xl,0,-1);
+ps.add_bc('nrc',xl,0,-1);
 
 %middle
 omega_geo = [-xm,xm]; %x
-v0   = 0.004;
+v0   = 0.02;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 
 % right
@@ -77,7 +76,6 @@ v0   = 0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 %% set BC
 ps.add_bc('nrc',xr,0,1);
-% ps.add_bc_noflow(xr,0,1);
 
 % right %bigger particles:
 % omega_geo = [0.6,0.7];

@@ -5,7 +5,7 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 10000;
+ps.Ntot    = 5000;
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
@@ -13,23 +13,23 @@ ps.dt       = 2e-8;
 ps.tend     = 5e-5;   
 % ps.tpause   = 0;
 ps.eta      = 1.2;     
-ps.set_kernel('Wendland');
-ps.EOS     = 'MG';
+ps.set_kernel('M4');
+ps.EOS     = 'ISO';
 ps.scheme   = 'm';
+ps.compOmegaj  = false;
 ps.h_const  = false;
-ps.exp_settings.tweakmass = false;
 
 % IO
-ps.plot_dt = 5e-6;   
+ps.plot_dt = 1e-6;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'd';%vpd';
+ps.plot_quantity = '';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
 %output
-ps.save_dt = 1e-5;
-ps.write_data = false;
-ps.output_name ='data/impact_bc_particle';
+ps.save_dt = 2e-4;
+ps.write_data = true;
+ps.output_name ='data/impactISO_org';
 
 %% material parameter
 
@@ -41,7 +41,7 @@ ps.Omega = [-0.1,0.1;  %x
 
 %% plate
 omega_geo = [0, 20e-3;     %x
-             -75e-3,100e-3];%y 
+             -75e-3,50e-3];%y 
            %  -225e-3,225e-3];%y 
 
 % set BC
@@ -52,7 +52,7 @@ omega_geo = [0, 20e-3;     %x
 p1 = [0,omega_geo(2,2)]; % top
 p2 = [1,omega_geo(2,2)];
 outer_normal = [0,1];
-ps.add_bc('nrp',p1,p2,outer_normal);
+ps.add_bc('nrc',p1,p2,outer_normal);
 
 rho0 = 2785;   
 c0   = 5330; 

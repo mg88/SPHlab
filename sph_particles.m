@@ -5,14 +5,16 @@
 % - nr-bc: what happens when particles move over this line?
 % - distances for non-reflecting bc are computed by the mean of all
 % distances -> not applicable for equal-mass scheme
-% -energy -> evolution equation!
+% -energy -> evolution equation - any advantages? see axisym diss
 
 %--
 % - axisymetrics
-% - cut of kernel function (circle segment)
-% - mie gruneisen - nrbc
 % - shear stresses
 % - damage model
+% - thermal diffusion? heat diffuses in solids quite fast...
+% - xi/S from Mie-Gruneisen - what is this? fixed parameter? see Shinatate
+% - Omegaj -> do I have to normalize it?
+% - Isothermal_impact
 
 classdef sph_particles < handle
 %% SPH for HVI  - Markus Ganser - TU/e - 2015
@@ -48,6 +50,7 @@ classdef sph_particles < handle
         % change of energy
         dej
         dej_diss
+        %
         %connectivity ([indice of startpoint, indice of endpoint]^ammount of connections
         pij  
         %all active connection of pij in two seperate arrays 
@@ -103,7 +106,10 @@ classdef sph_particles < handle
         ddWij
         dWij_over_rij
         %smoothing length
+        eta
         hj 
+        Omegaj
+        compOmegaj %bool
         h_const  %boolean
         kernel    % M4 | gauss
         kernel_cutoff
@@ -116,7 +122,7 @@ classdef sph_particles < handle
         obsolete_k_pij;
         % boundary condition        
         bc  %struct
-        
+        %        
         % experimantal settings (struct)
         exp_settings
         Xj_ghost
@@ -168,8 +174,11 @@ classdef sph_particles < handle
             obj.mj    = obj_scen.Vj.*obj_scen.rhoj;    
             obj.Vj    = obj_scen.Vj;            
             %initial smoothing length
-            obj.hj       = obj_scen.Vj.^(1/obj.dim) * obj_scen.eta; 
-            
+            obj.eta      = obj_scen.eta;
+            obj.hj       = obj_scen.Vj.^(1/obj.dim) * obj.eta; 
+            obj.Omegaj   = 1; % let it scalar if not used
+            obj.compOmegaj = obj_scen.compOmegaj;
+
             obj.exp_settings = obj_scen.exp_settings;                                 
             
             obj.h_const       = obj_scen.h_const;
@@ -203,41 +212,36 @@ classdef sph_particles < handle
             %define kernel:
             if strcmp(obj.kernel,'Gauss')
                 sigma = [1/sqrt(pi),1/pi,1/(pi*sqrt(pi))];
-                obj.fw  = @(r) sigma(obj.dim) * exp(-r.^2);
-                obj.fdw = @(r) sigma(obj.dim) * -2*r.*exp(-r.^2);
+                obj.fw  = @(q) sigma(obj.dim) * exp(-q.^2);
+                obj.fdw = @(q) sigma(obj.dim) * -2*q.*exp(-q.^2);
             elseif strcmp(obj.kernel,'M3')
                 sigma = [2/3; 10/(7*pi); 1/pi];
-                obj.fw = @(r)  sigma(obj.dim)* (...
-                    1/4*(2-r).^3   ...
-                      -( (1-r).^3 .* (r<1)));            
-                obj.fdw = @(r)  sigma(obj.dim)* (... 
-                     -3/4*(2-r).^2  ...
-                    + 3*(1-r).^2 .* (r<1));  
+                obj.fw = @(q)  sigma(obj.dim)* (...
+                    1/4*(2-q).^3   ...
+                      -( (1-q).^3 .* (q<1)));            
+                obj.fdw = @(q)  sigma(obj.dim)* (... 
+                     -3/4*(2-q).^2  ...
+                    + 3*(1-q).^2 .* (q<1));  
             elseif strcmp(obj.kernel,'M4')
                 sigma = [1/24, 96/(1199*pi), 1/(20*pi)];
-                obj.fw = @(r)  sigma(obj.dim)* (...
-                    (5/2-r).^4 ...
-                    -5*(3/2-r).^4 .* (r<1.5) ...
-                    +10*(0.5-r).^4 .*(r<0.5));
-                obj.fdw = @(r)  sigma(obj.dim)* -4* (... 
-                    (5/2-r).^3 ...
-                   -5 *(3/2-r).^3 .* (r<1.5) ...
-                   +10*(0.5-r).^3 .* (r<0.5));                        
-            elseif strcmp(obj.kernel,'Wendland')
+                obj.fw = @(q)  sigma(obj.dim)* (...
+                    (5/2-q).^4 ...
+                    -5*(3/2-q).^4 .* (q<1.5) ...
+                    +10*(0.5-q).^4 .*(q<0.5));
+                obj.fdw = @(q)  sigma(obj.dim)* -4* (... 
+                    (5/2-q).^3 ...
+                   -5 *(3/2-q).^3 .* (q<1.5) ...
+                   +10*(0.5-q).^3 .* (q<0.5));                        
+            elseif strcmp(obj.kernel,'Wendland') % very weak for computing Omegaj
                 sigma = [3/4; 7/(4*pi); 21/(16*pi)];
-                obj.fw = @(r)   sigma(obj.dim)*...
-                   (1-r/2).^4 .* (1+2*r);
-                obj.fdw =@(r)  sigma(obj.dim)*... 
-                  -5*r.*(1-r/2).^3;    
+                obj.fw = @(q)   sigma(obj.dim)*...
+                   (1-q/2).^4 .* (1+2*q);
+                obj.fdw =@(q)  sigma(obj.dim)*... 
+                  -5*q.*(1-q/2).^3;                  
             else
                 error([obj.kernel,' is as kernel not implemented yet']);
             end
 
-            %possible? why?
-            if obj.h_const && strcmp(obj.kernel,'Gauss')
-                warning('It is not the obj-kernel in use')
-            end
-            
             % some preallocation
             obj.Fj_int     = zeros(obj.N,obj.dim);
             obj.Fj_diss    = zeros(obj.N,obj.dim);
@@ -275,7 +279,6 @@ classdef sph_particles < handle
                                 'ejghost',[],...
                                 'rhojghost',[]);                            
             obj.tmp=0;
-            
             obj.pij_ghost = [];
             obj.Xj_ghost = [];
             obj.compGhost = true; %probably that should be always true (in order to compute volume an pressure)
@@ -329,7 +332,7 @@ classdef sph_particles < handle
                 BC(obj)                 
              end
 
-             if obj.compGhost
+             if obj.compGhost %for data analysis (conservation)
                  obj.IOdata_h.vjghost   = obj.vj_half(obj.Ighost,:);             
                  obj.IOdata_h.ejghost   = obj.ej_half(obj.Ighost);
                  obj.IOdata_h.rhojghost = obj.rhoj_half(obj.Ighost);                               
@@ -340,8 +343,11 @@ classdef sph_particles < handle
              end
 
              search_neighbours(obj);                                                   
-             % mass, momentum and energy fluxes:
-             comp_kernel(obj)              
+             % mass, momentum and energy fluxes:             
+             comp_kernel(obj) 
+             if (obj.compOmegaj && ~obj.h_const)
+                 comp_Omegaj(obj);                 
+             end
              comp_forces(obj)  
              comp_dRho(obj)    
               
@@ -351,12 +357,7 @@ classdef sph_particles < handle
              if ~obj.isothermal
                 comp_de(obj)                             
              end       
-             comp_dissipation(obj) %mass, momentum, energy
-             
-             %%% set very small forces to zero
-%              eps=1e-12; -> violates conservation!
-%              obj.Fj_tot (abs(obj.Fj_tot)<eps) = 0;
-%              obj.drhoj (abs(obj.drhoj)<eps) = 0;
+             comp_dissipation(obj) %mass, momentum, energy             
              
              %experimental:
              %comp_BCdamping(obj)             
@@ -370,7 +371,7 @@ classdef sph_particles < handle
              end
              
              comp_pressure(obj);
-             comp_volume(obj); %(only for v-scheme, f_ST and phy diss)
+             comp_volume(obj); %(only for v-scheme, Omegaj, f_ST and phy diss)
 
         end     
         %%
@@ -450,8 +451,7 @@ classdef sph_particles < handle
 %                     keyboard
                 end 
             end
-        end
-        
+        end        
         %%
         function Ashift = lookup_cellshift(obj,jshift)
                if obj.dim==1
@@ -974,25 +974,25 @@ classdef sph_particles < handle
                 obj.dWij_hi = obj.dWij;
                 obj.dWij_hj = obj.dWij;
              else
-                
-                r = [(obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ii);
+                 
+                q = [(obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ii);
                      (obj.rij(obj.active_k_pij)) ./ obj.hj(obj.Ij)];
  
                 Np = sum(obj.active_k_pij);
-                I  = r < obj.kernel_cutoff;
+                I  = q < obj.kernel_cutoff;
                 w  = zeros(2*Np,1);            
-                w(I) = obj.fw(r(I));
+                w(I) = obj.fw(q(I));
 
                 obj.Wij_hi = w(1:Np)./ (obj.hj(obj.Ii).^obj.dim);
                 obj.Wij_hj = w(Np+1:end)./ (obj.hj(obj.Ij).^obj.dim);
                 obj.Wij    = 0.5*(obj.Wij_hi + obj.Wij_hj);
 
                 dw = zeros(2*Np,1);
-                dw(I) = obj.fdw(r(I,:));
+                dw(I) = obj.fdw(q(I,:));
 
                 obj.dWij_hi = 1./obj.hj(obj.Ii).^(obj.dim+1) .* dw(1:Np);
                 obj.dWij_hj = 1./obj.hj(obj.Ij).^(obj.dim+1) .* dw(Np+1:end);
-                obj.dWij    = 0.5*(obj.dWij_hi+obj.dWij_hj);
+                obj.dWij    = 0.5*(obj.dWij_hi+obj.dWij_hj);                
                 
                 if obj.beta ~= 0 % necessary only for surface tension
                     error('ddW not implented for not constant h yet');
@@ -1007,6 +1007,69 @@ classdef sph_particles < handle
              end
         end               
         %%    
+        function comp_Omegaj(obj) %very weak with Wendland kernel
+            
+           hj_bar = 0.5*(obj.hj(obj.Ii)+obj.hj(obj.Ij))  ;
+           %normalization:           
+           sumW = abs(obj.AedgesXj(:,obj.active_k_pij)) *...
+               (obj.Vj(obj.Ii).*obj.Wij)... % fluxes
+                +obj.Vj.*obj.fw(0)./ obj.hj.^obj.dim; %himself
+
+           dJ = zeros(size(obj.pij,1),1);
+           dJ(obj.active_k_pij,:)=(obj.rhoj(obj.Ii).*obj.Vj(obj.Ii).*obj.Wij); %mj
+           Jrhoi = (abs(obj.AedgesXj) * dJ...
+                +obj.Vj.*obj.rhoj.*obj.fw(0)./ obj.hj.^obj.dim... %himself...
+               )./sumW;
+           
+           qOmega_dW = zeros(size(obj.pij,1),1);
+           qOmega_W  = zeros(size(obj.pij,1),1);
+
+           q = (obj.rij(obj.active_k_pij)) ./ hj_bar;
+           dWdhij_dW  = - q.*obj.dWij;
+           dWdhij_W   = - obj.dim./hj_bar .*obj.Wij; 
+           
+           dhdrho =  -1/obj.dim * obj.eta * obj.mj.^(1/obj.dim).*...
+                            obj.rhoj.^(-1/obj.dim -1);  
+           
+           if strcmp(obj.scheme,'m')                  
+               qOmega_dW(obj.active_k_pij,:)  = obj.Vj(obj.Ij).*dWdhij_dW.*(obj.rhoj(obj.Ij)-Jrhoi(obj.Ij));
+               qOmega_W(obj.active_k_pij,:)   = obj.Vj(obj.Ij).*dWdhij_W.*(obj.rhoj(obj.Ij)-Jrhoi(obj.Ij));
+               
+
+               J1 = ((abs(obj.AedgesXj) * qOmega_W)... %add up all fluxes (no distinction between in and outcomming)->abs                                      
+                            - obj.Vj.*(obj.rhoj-Jrhoi).*obj.dim*obj.fw(0)./ obj.hj.^(obj.dim+1)...  % consider selfinteraction;
+                            );                                 
+               J2 = (abs(obj.AedgesXj) * qOmega_dW);
+              
+               obj.Omegaj = 1  - (dhdrho.*(J1+J2)./sumW);                            
+
+
+           elseif strcmp(obj.scheme,'v')
+               qOmega(obj.active_k_pij,:) = obj.Vj(obj.Ij).*dWdhij_hi;
+
+               obj.Omegaj = 1  - (obj.rhoj.*dhdrho.*...
+                            (...
+                            (abs(obj.AedgesXj) * qOmega)... %add up all fluxes (no distinction between in and outcomming)->abs
+                            - obj.Vj.*obj.dim*obj.fw(0)./ obj.hj.^(obj.dim+1)...  % consider selfinteraction;
+                            ))./sumW;   
+           elseif strcmp(obj.scheme,'n')
+               qOmega(obj.active_k_pij,:) = dWdhij_hi;
+
+               obj.Omegaj = 1  - (obj.mj.*dhdrho.*...
+                            (...
+                            (abs(obj.AedgesXj) * qOmega)... %add up all fluxes (no distinction between in and outcomming)->abs
+                            - obj.dim*obj.fw(0)./ obj.hj.^(obj.dim+1)...  % consider selfinteraction;
+                            ))./sumW;                 
+           else
+               error('only m,n,v-schemes are supported right now');
+           end
+ 
+%            disp(['min:',num2str(min(obj.Omegaj)),' max:',num2str(max(obj.Omegaj))]);
+%            if min(obj.Omegaj)<0
+%                keyboard
+%            end
+        end
+        %%
         function update_full_step(obj) 
             if ~obj.firststep
                 obj.rhoj(obj.Icomp) = obj.rhoj_half(obj.Icomp)+ 0.5*obj.dt * obj.drhoj(obj.Icomp);
@@ -1069,7 +1132,7 @@ classdef sph_particles < handle
             function comp_pressure_EOS_isothermal(obj)
                 obj.pj(obj.Icomp,:) = obj.c0j(obj.Icomp) .* obj.c0j(obj.Icomp) ...
                                      .*(obj.rhoj(obj.Icomp) - obj.rho0j(obj.Icomp));
-                %c= sqrt(dp/de)
+                %c= sqrt(dp/drho)=c0 -> no change
             end
             %%
             function comp_pressure_EOS_mie_gruneinsen(obj) %double check that
@@ -1079,18 +1142,18 @@ classdef sph_particles < handle
                 b0 = a0.*(1+2*(S-1));
                 c0 = a0.*(2*(S-1)+3*(S-1).^2);
 
-                eta = obj.rhoj(obj.Icomp)./obj.rho0j(obj.Icomp)-1;
+                etaMG = obj.rhoj(obj.Icomp)./obj.rho0j(obj.Icomp)-1;
 
-                pH = a0.*eta + (eta>0) .* (b0.*eta.^2 + c0.*eta.^3);
+                pH = a0.*etaMG + (etaMG>0) .* (b0.*etaMG.^2 + c0.*etaMG.^3);
 
-                obj.pj(obj.Icomp,:) = (1 - 0.5*Gamma*eta) .*pH ...
+                obj.pj(obj.Icomp,:) = (1 - 0.5*Gamma*etaMG) .*pH ...
                                     + Gamma .*obj.rhoj(obj.Icomp).* obj.ej(obj.Icomp); 
                 
                 % update speed of sound: (copy paste from LimeSPH)
                 obj.cj(obj.Icomp,:) = (-0.5*pH./obj.rho0j(obj.Icomp,:) ...
-                                    + (1-0.5*Gamma*eta) .*...
+                                    + (1-0.5*Gamma*etaMG) .*...
                                     (a0 + ...
-                                    (2*b0.*eta + 3*c0.*eta.^2).*(eta>0)...                                          
+                                    (2*b0.*etaMG + 3*c0.*etaMG.^2).*(etaMG>0)...                                          
                                      )./obj.rho0j(obj.Icomp,:) +...
                                      Gamma*obj.ej(obj.Icomp,:)).^0.5; 
             end
@@ -1129,7 +1192,7 @@ classdef sph_particles < handle
         end
         %% change of energy (ideal process -reversible and adiabatic)
         function comp_de(obj)
-            %obj.dej = zeros(obj.N,1);
+            obj.dej = 0*obj.dej ;
             obj.dej(obj.Icomp) = obj.pj(obj.Icomp)./...
                              ((obj.rhoj(obj.Icomp)).^2) .* obj.drhoj(obj.Icomp);
         end          
@@ -1153,10 +1216,33 @@ classdef sph_particles < handle
                     (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
                     (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
                     ,2);
-
+                
+                
                 %add up all the corresponding density flux in each node
                 obj.drhoj = ((obj.AedgesXj>0) * qrho_ij +...
-                            ( obj.AedgesXj<0) * qrho_ji);  %ToDo: make more computational effective
+                            ( obj.AedgesXj<0) * qrho_ji)./obj.Omegaj;  
+            end
+            %%
+            function comp_dRho_n_scheme(obj)
+                obj.drhoj  = 0*obj.drhoj; 
+                qrho_ij = zeros(size(obj.pij,1),1);
+                qrho_ji = zeros(size(obj.pij,1),1);
+                
+                qrho_ij(obj.active_k_pij,:) =  ... % i-> j %hi
+                    sum(... %scalar product v*n 
+                    (obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:)) .*...
+                    (obj.dWij_hi*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
+                    ,2);
+                qrho_ji(obj.active_k_pij,:) =  ... % j -> i %hj
+                     sum(... %scalar product v*n 
+                    (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
+                    (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
+                    ,2);
+                
+                
+                %add up all the corresponding density flux in each node
+                obj.drhoj = ((obj.AedgesXj>0) * qrho_ij +...
+                            ( obj.AedgesXj<0) * qrho_ji).*obj.mj./obj.Omegaj;  
             end
             %%
             function comp_dRho_v_scheme(obj)
@@ -1175,11 +1261,11 @@ classdef sph_particles < handle
                     (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
                     (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
                     ,2);
-
+                
                 %add up all the corresponding density flux in each node
                 obj.drhoj = ((obj.AedgesXj>0) * qrho_ij +...
                              (obj.AedgesXj<0) * qrho_ji)...
-                            .*obj.rhoj/1;
+                            .*obj.rhoj./obj.Omegaj;
             end
             %% ------------------
                        
@@ -1188,6 +1274,8 @@ classdef sph_particles < handle
             end
             if strcmp(obj.scheme,'m')            
                 comp_dRho_m_scheme(obj);
+            elseif strcmp(obj.scheme,'n')
+                comp_dRho_n_scheme(obj);
             elseif strcmp(obj.scheme,'v')
                 comp_dRho_v_scheme(obj);
             else
@@ -1201,7 +1289,7 @@ classdef sph_particles < handle
             function comp_Fint_m_scheme(obj) %internal forces  
                 %compute the flux
                 qFj_int_ij = zeros(size(obj.pij,1),obj.dim);
-                p_rho_omega_j = obj.pj./(1*obj.rhoj.*obj.rhoj);
+                p_rho_omega_j = obj.pj./(obj.Omegaj.*obj.rhoj.*obj.rhoj);
 
                 qFj_int_ij(obj.active_k_pij,:)=...
                     -((obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... % hi
@@ -1212,14 +1300,32 @@ classdef sph_particles < handle
                     (p_rho_omega_j(obj.Ij).*obj.dWij_hj)...  %<- change here
                     *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
 
+                
                 %spread fluxes to the nodes
                 obj.Fj_int = obj.AedgesXj * qFj_int_ij;  
+            end
+            %%
+            function comp_Fint_n_scheme(obj) %internal forces  
+                %compute the flux
+                qFj_int_ij = zeros(size(obj.pij,1),obj.dim);
+                pVV_omega_j = obj.Vj.^2.*obj.pj./(obj.Omegaj);
+
+                qFj_int_ij(obj.active_k_pij,:)=...
+                    -(...
+                    ((pVV_omega_j(obj.Ii).*obj.dWij_hi)... 
+                    *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:)...
+                    +...
+                    ((pVV_omega_j(obj.Ij).*obj.dWij_hj)...  
+                    *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
+                                
+                %spread fluxes to the nodes
+                obj.Fj_int = obj.AedgesXj * qFj_int_ij;
             end
             %%
             function comp_Fint_v_scheme(obj) %internal forces  
                 %compute the flux
                 qFj_int_ij = zeros(size(obj.pij,1),obj.dim);
-                p_omega_j = obj.pj./(1);
+                p_omega_j = obj.pj./(obj.Omegaj);
 
                 qFj_int_ij(obj.active_k_pij,:)=...
                     -((obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... % hi
@@ -1229,7 +1335,8 @@ classdef sph_particles < handle
                     (obj.Vj(obj.Ii).*obj.Vj(obj.Ij) .*... %hj
                     (p_omega_j(obj.Ij).*obj.dWij_hj)...  %<- change here
                     *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
-
+                
+                
                 %spread fluxes to the nodes
                 obj.Fj_int = obj.AedgesXj * qFj_int_ij;
             end
@@ -1277,6 +1384,8 @@ classdef sph_particles < handle
             %internal forces
             if strcmp(obj.scheme,'m')            
                 comp_Fint_m_scheme(obj);
+            elseif strcmp(obj.scheme,'n')
+                comp_Fint_n_scheme(obj);
             elseif strcmp(obj.scheme,'v')
                 comp_Fint_v_scheme(obj);
             else
@@ -1336,6 +1445,7 @@ classdef sph_particles < handle
             %note: hat(xij)*gradiWij = hat(xij)*Wij'*hat(xij)) = Wij' =
             %hat(xij)*gradjWji
           
+            
             % spread flux onto nodes
             obj.drhoj_diss = (obj.AedgesXj*qrho_ij_diss)./obj.mj;
 
@@ -1355,6 +1465,8 @@ classdef sph_particles < handle
                  .*obj.dWij)...   
                  *ones(1,obj.dim)...
                  .*obj.xij_h(obj.active_k_pij,:);
+                
+             
               % spread flux onto nodes
               obj.Fj_diss = obj.AedgesXj * qFj_diss_ij;
 
@@ -1388,6 +1500,7 @@ classdef sph_particles < handle
                     (rho_ij_bar )...
                     .*obj.dWij;
 
+                
                 % spread flux onto nodes
                 obj.dej_diss =  (obj.AedgesXj *  qe_ij_diss)./obj.mj;
   
@@ -1395,62 +1508,7 @@ classdef sph_particles < handle
                                              obj.dej_diss(obj.Icomp,:);
             end
         end
-        %%                
-        function comp_BCdamping(obj) %todo
-           for boun = obj.bc
-               if ~isempty(boun.damping_area)
-                   error('todo');
-%                    xb = obj.bc.damping_area;
-%                    L  = xb(2)-xb(1);           
-%                    kb = logical((obj.Xj(obj.Iin)>xb(1)) .* (obj.Xj(obj.Iin)<xb(2))); %particels in boundary layer
-%                    x  = obj.Xj(kb,:); 
-%                    Nkb = sum(kb);   
-%                    %hyperbolic
-%                    sigma0 = max(obj.cj) / L;
-%                    sigma  = sigma0 *(x - xb(1)) ./ (xb(2)-x +0.5*max(obj.hj));
-%         %             
-%         %            m      = 10;
-%         %            sigma0 = 10;
-%         %            sigma=sigma0*((obj.Xj(kb,:) - xb(1))./(xb(2)-xb(1))).^m;
-% 
-%                     %switching functiosn
-%                    f0 = ones(Nkb,1);             % do nothing
-%                    f1 = - (x  - xb(2)) / L;         % linear
-%                    f2 = (L^2 - (x -xb(1)).^2) / L^2;  % quadratic
-% 
-%                       %% damp if
-%                       %never
-%                    damp_never = zeros(Nkb,1);
-%                       %always           
-%                    damp_always = ones(Nkb,1);
-%                       %negative pressure
-%                    damp_pressure = obj.pj(kb,:)<0; 
-%                       %only if v<0
-%                    damp_velocity = obj.vj(kb,:)<0; 
-% 
-%                    %% setup
-%                    damp = damp_never;
-%                    f_S = f1;  %density-change
-%                    f_Q = f1;  %forces
-%                    sigmaS = 1*sigma;
-%                    sigmaQ = 0.02*sigma;
-% 
-% 
-%                     %density:
-%                    S = - sigmaS.*(obj.rhoj(kb,:) - obj.rho0j(kb,:));
-%                    obj.drhoj(kb,:) = (obj.drhoj(kb,:).*f_S + S.*damp);         
-%                     %forces:
-%                    Q = - sigmaQ.*(obj.vj(kb,:) - 0);
-%                    obj.Fj_tot(kb,:) = (obj.Fj_tot(kb,:).*f_Q + Q.*damp ) ;
-% 
-% 
-%                    %% stop particels
-%         %            kb_stop = logical ((obj.Xj>=xb(2)));
-%         %            obj.vj(kb_stop) = 0;
-               end
-           end
-        end       
-        %% 
+        %%                 
         function BC(obj)
             resetData(obj)
             for iboun = 1:size(obj.bc,2)
@@ -1465,7 +1523,7 @@ classdef sph_particles < handle
                 elseif strcmp (boun.type,'noflow') 
                     BCnoflow(obj,iboun);
                 else                     
-                    error('no such boundary condition possible');
+                    error('no such boundary condition implemented');
                 end
             end                  
         end
@@ -1493,177 +1551,70 @@ classdef sph_particles < handle
         function BCnrc_init (obj,iboun)
             if obj.firststep %search for the boundary particles and set reference
                dx = mean(obj.Vj)^(1/obj.dim);
-               obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< dx;
+               obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< 3*dx;
                obj.bc(iboun).rho_ref = obj.rhoj(obj.bc(iboun).kb);
                obj.bc(iboun).p_ref   = obj.pj(obj.bc(iboun).kb);
                obj.bc(iboun).v_ref   = obj.vj(obj.bc(iboun).kb,:); 
-
-               obj.bc(iboun).ndx     =obj.bc(iboun).outer_normal *dx;    
             end
-        end       
-       
-        %% 
-        function BCnrp (obj, iboun) %copy particles and use characteristic method
-            Akb = find(obj.bc(iboun).kb);
-            ndx = obj.bc(iboun).ndx;
-            for i = 1:size(Akb,1)
-                kb=Akb(i);
-                rho_ref = obj.bc(iboun).rho_ref(i); 
-                v_ref   = obj.bc(iboun).v_ref(i,:);
-                p_ref   = obj.bc(iboun).p_ref(i);
-                
-                %create new particles:
-                NN = 5; %amount of particles
-                Ig = size(obj.Xj,1)+(1:NN)'; %indice
-                copyData(obj, kb, Ig)
-                % set coordinate
-                x = obj.Xj(kb,:);
-                obj.Xj(Ig,:) = ones(NN,1)*x + (1:NN)' * ndx ;
-                %---
-                way = 2;
-                %---
-                if way == 1 % with isothermal approach
-                    n = obj.bc(iboun).outer_normal;
-                    w1= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
-                    w2= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
-
-                    w2=0;                   
-                    obj.rhoj(Ig) = ...rho_ref + ...
-                        exp((w1-w2)/(2*obj.cj(kb)));
-                    obj.vj(Ig,:) = ones(NN,1)*( ...
-                         0.5*(w1+w2))*n;
-                    obj.pj(Ig) = obj.cj(kb)*obj.cj(kb)*(obj.rhoj(kb)-rho_ref);
-              
-                elseif way == 2 %with the ideal gas equation
-                    
-                    % possibility 1:
-                    n = obj.bc(iboun).outer_normal;
-                    % possibility 2:
-%                     n = -obj.bc(iboun).outer_normal;
-
-                    J1 = -obj.cj(kb).^2 .*(obj.rhoj(kb) - rho_ref)...
-                        + (obj.pj(kb) - p_ref);
-                    %J1 = 0 always
-                    J2 = obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
-                        + (obj.pj(kb) - p_ref);
-
-                    J3 = - obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
-                    + (obj.pj(kb) - p_ref);
-
-                    if norm(J1)>1e-4
-                        keyboard
-                    end
-                    % possibility 1:
-                    J3=0;         
-                    % possibility 2:
-%                     J1=0;
-%                     J2=0;
-
-
-                    obj.rhoj(kb) = rho_ref + ...
-                        1./(obj.c0j(kb).^2).*(-J1+0.5*J2+0.5*J3);
-                    obj.vj(Ig,:) = ones(size(Ig,1),1)*(v_ref + ...
-                        (1./(2*obj.c0j(kb).*obj.rho0j(kb)) * (J2 - J3))*n);
-                    obj.pj(Ig,:) = p_ref+...
-                        0.5*(J2+J3);
-                    
-                    
-                elseif way ==3 % just copy values
-                     obj.rhoj(Ig) = obj.rhoj(kb);
-                     obj.vj(Ig,:) = obj.vj(kb);
-                     obj.pj(Ig,:) = obj.pj(kb);
-                end
-            end
-
-        end
-        
-        
-        %% ------------
+        end              
+        %%
         function BCnrc (obj,iboun)
             kbb = find (obj.bc(iboun).kb);
-            for ik = 1:size(kbb,1)
-                kb=kbb(ik);
-                v_ref = obj.bc(iboun).v_ref(ik,:);
-                p_ref = obj.bc(iboun).p_ref(ik);
-                rho_ref = obj.bc(iboun).rho_ref(ik);
-                ndx = obj.bc(iboun).ndx;
-                dx = norm(ndx);
-                n = ndx/dx;
-                I = kb; 
-                
-                way =2;
-                 if way == 1 % with isothermal approach
-                    n = obj.bc(iboun).outer_normal;
-                    w1= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
-                    w2= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
 
-                    w2=0;                   
-                    rhojb = ...rho_ref + ...
-                        exp((w1-w2)/(2*obj.cj(kb)));
-                    vjb = ( ...
-                         0.5*(w1+w2))*n;
-                    pjb = obj.cj(kb)*obj.cj(kb)*(obj.rhoj(kb)-rho_ref);
-              
-                elseif way == 2 %with the ideal gas equation
-                    
-                    % possibility 1:
-                    n = obj.bc(iboun).outer_normal;
-                    % possibility 2:
-%                     n = -obj.bc(iboun).outer_normal;
+            qdW = zeros(size(obj.pij,1),obj.dim);
+            qdW(obj.active_k_pij,:)= (obj.mj(obj.Ii).*...
+                        obj.dWij_hi*...
+                        ones(1,obj.dim)).*...
+                        obj.xij_h(obj.active_k_pij,:);
 
-                    J1 = -obj.cj(kb).^2 .*(obj.rhoj(kb) - rho_ref)...
-                        + (obj.pj(kb) - p_ref);
-                    %J1 very small
-                    J2 = obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
-                        + (obj.pj(kb) - p_ref);
+            sumdW= obj.AedgesXj(kbb,:) * qdW;
+            
+            v_ref = obj.bc(iboun).v_ref;
+            p_ref = obj.bc(iboun).p_ref;
+            rho_ref = obj.bc(iboun).rho_ref;
+            c_ref=obj.c0j(kbb,:);
 
-                    J3 = - obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
-                    + (obj.pj(kb) - p_ref);
+            %or dW normal?
+            n = obj.bc(iboun).outer_normal;
+          %  nW = -sumdW(kbb,:)./((sum(sumdW(kbb,:).^2,2).^0.5)*ones(1,obj.dim));
+            n_len = sum(sumdW .*(ones(size(kbb,1),1)*n),2);           
+            J1 = -c_ref.^2 .*(obj.rhoj(kbb) - rho_ref)...
+                + (obj.pj(kbb) - p_ref);
+            %J1 very small
+            J2 = obj.rhoj(kbb).*c_ref .* ((obj.vj(kbb,:) - v_ref)*n')...
+                + (obj.pj(kbb) - p_ref);
 
-%                     if norm(J1) > 1e-6
-%                         keyboard
-%                     end
-                    % possibility 1:
-                    J3=0;         
-                    % possibility 2:
+            J3 = - obj.rhoj(kbb).*c_ref .* ((obj.vj(kbb,:) - v_ref)*n')...
+            + (obj.pj(kbb) - p_ref);
+            
+             % possibility 1: n= n
+            J3=J3*0;         
+            % possibility 2: -> n= -n
 %                     J1=0;
-%                     J2=0;
-                                
+%                     J2=0;    
 
-                    rhojb = rho_ref + ...
-                        1./(obj.c0j(kb).^2).*(-J1+0.5*J2+0.5*J3);
-                    vjb = v_ref + ...
-                        (1./(2*obj.c0j(kb).*rhojb) * (J2 - J3))*n;
-                    pjb = p_ref+...
-                            0.5*(J2+J3);
-                 end      
-                %discrete
-%                 Nneig = 2;
-%                 r=(1:Nneig)*dx/obj.hj(kb);
-%                 dW = 1./obj.hj(kb).^(obj.dim+1) .* obj.fdw(r);                
-%                 sumdW1 = sum(dW)* obj.mj(kb);% * 1.7;(2d)
-%                 
-               %continous integration
-               if obj.dim == 1
-                   sumdW = rhojb* (obj.fw(obj.kernel_cutoff)-obj.fw(0.40))/obj.hj(kb);
-               elseif obj.dim == 2
-                    xi = 40;%degree Wendland: 40; M4: 30; M3: 35; Gauss: 30
-                    factor = cos(xi/360*2*pi) - cos((180-xi)/360*2*pi);                
-                    sumdW= -factor*rhojb* integral(obj.fw,0,obj.kernel_cutoff)/(obj.hj(kb));
-               end
-               
-                drho_diss = (obj.vj(kb,:)-vjb)*sumdW*n';
+           % virtual values
+            rhojb = rho_ref + ...
+                1./(c_ref.^2).*(-J1+0.5*J2+0.5*J3);
+            vjb = v_ref + ...
+                (1./(2*c_ref.*rhojb) .* (J2 - J3))*n;
+            pjb = p_ref+...
+                    0.5*(J2+J3);
                 
-                obj.drhoj(kb) = obj.drhoj(kb) - drho_diss;
-                
-                dvj_diss = -((obj.pj(kb)/obj.rhoj(kb)^2 + pjb/rhojb^2)...
-                    *sumdW*n);
-                obj.Fj_tot(kb,:) = obj.Fj_tot(kb,:) - dvj_diss * obj.mj(kb);
-
+            if obj.compOmegaj
+                omega = obj.Omegaj(kbb);
+            else
+                omega = 1;
             end
-                            
-        end       
-        
+            
+            drho_diss = sum((obj.vj(kbb,:)-vjb) .* (n_len*n),2)./omega;
+            obj.drhoj(kbb) = obj.drhoj(kbb) - drho_diss;
+
+            dvj_diss = -(((obj.pj(kbb)./obj.rhoj(kbb).^2 + pjb./rhojb.^2./omega)...
+                *ones(1,obj.dim))...
+                .*(n_len*n));
+            obj.Fj_tot(kbb,:) = obj.Fj_tot(kbb,:) - dvj_diss .* (obj.mj(kbb)*ones(1,obj.dim));
+        end
         %%
         function BCnrm (obj,iboun)
             %%
@@ -1756,8 +1707,136 @@ classdef sph_particles < handle
             if ~isempty(Imirror)
                 obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,p0,e0,m_factor,v_factor,p_factor); 
             end
-        end %mirror particles
-        
+        end %mirror particles        
+        %%
+        function BCnrp (obj, iboun) %copy particles and use characteristic method
+            Akb = find(obj.bc(iboun).kb);
+            ndx = obj.bc(iboun).ndx;
+            for i = 1:size(Akb,1)
+                kb=Akb(i);
+                rho_ref = obj.bc(iboun).rho_ref(i); 
+                v_ref   = obj.bc(iboun).v_ref(i,:);
+                p_ref   = obj.bc(iboun).p_ref(i);
+                
+                %create new particles:
+                NN = 5; %amount of particles
+                Ig = size(obj.Xj,1)+(1:NN)'; %indice
+                copyData(obj, kb, Ig)
+                % set coordinate
+                x = obj.Xj(kb,:);
+                obj.Xj(Ig,:) = ones(NN,1)*x + (1:NN)' * ndx ;
+                %---
+                way = 2;
+                %---
+                if way == 1 % with isothermal approach
+                    n = obj.bc(iboun).outer_normal;
+                    w1= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
+                    w2= obj.vj(kb,:)*n' + obj.cj(kb)*log(obj.rhoj(kb));
+
+                    w2=0;                   
+                    obj.rhoj(Ig) = ...rho_ref + ...
+                        exp((w1-w2)/(2*obj.cj(kb)));
+                    obj.vj(Ig,:) = ones(NN,1)*( ...
+                         0.5*(w1+w2))*n;
+                    obj.pj(Ig) = obj.cj(kb)*obj.cj(kb)*(obj.rhoj(kb)-rho_ref);
+              
+                elseif way == 2 %with the ideal gas equation
+                    
+                    % possibility 1:
+                    n = obj.bc(iboun).outer_normal;
+                    % possibility 2:
+%                     n = -obj.bc(iboun).outer_normal;
+
+                    J1 = -obj.cj(kb).^2 .*(obj.rhoj(kb) - rho_ref)...
+                        + (obj.pj(kb) - p_ref);
+                    %J1 = 0 always
+                    J2 = obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
+                        + (obj.pj(kb) - p_ref);
+
+                    J3 = - obj.rhoj(kb).*obj.cj(kb) .* (obj.vj(kb,:) - v_ref)*n'...
+                    + (obj.pj(kb) - p_ref);
+
+%                     if norm(J1)>1e-4
+%                         keyboard
+%                     end
+                    % possibility 1:
+                    J3=0;         
+                    % possibility 2:
+%                     J1=0;
+%                     J2=0;
+
+
+                    obj.rhoj(kb) = rho_ref + ...
+                        1./(obj.c0j(kb).^2).*(-J1+0.5*J2+0.5*J3);
+                    obj.vj(Ig,:) = ones(size(Ig,1),1)*(v_ref + ...
+                        (1./(2*obj.c0j(kb).*obj.rho0j(kb)) * (J2 - J3))*n);
+                    obj.pj(Ig,:) = p_ref+...
+                        0.5*(J2+J3);
+                    
+                    
+                elseif way ==3 % just copy values
+                     obj.rhoj(Ig) = obj.rhoj(kb);
+                     obj.vj(Ig,:) = obj.vj(kb);
+                     obj.pj(Ig,:) = obj.pj(kb);
+                end
+            end
+
+        end
+        %%
+        function comp_BCdamping(obj) %todo
+           for boun = obj.bc
+               if ~isempty(boun.damping_area)
+                   error('todo');
+%                    xb = obj.bc.damping_area;
+%                    L  = xb(2)-xb(1);           
+%                    kb = logical((obj.Xj(obj.Iin)>xb(1)) .* (obj.Xj(obj.Iin)<xb(2))); %particels in boundary layer
+%                    x  = obj.Xj(kb,:); 
+%                    Nkb = sum(kb);   
+%                    %hyperbolic
+%                    sigma0 = max(obj.cj) / L;
+%                    sigma  = sigma0 *(x - xb(1)) ./ (xb(2)-x +0.5*max(obj.hj));
+%         %             
+%         %            m      = 10;
+%         %            sigma0 = 10;
+%         %            sigma=sigma0*((obj.Xj(kb,:) - xb(1))./(xb(2)-xb(1))).^m;
+% 
+%                     %switching functiosn
+%                    f0 = ones(Nkb,1);             % do nothing
+%                    f1 = - (x  - xb(2)) / L;         % linear
+%                    f2 = (L^2 - (x -xb(1)).^2) / L^2;  % quadratic
+% 
+%                       %% damp if
+%                       %never
+%                    damp_never = zeros(Nkb,1);
+%                       %always           
+%                    damp_always = ones(Nkb,1);
+%                       %negative pressure
+%                    damp_pressure = obj.pj(kb,:)<0; 
+%                       %only if v<0
+%                    damp_velocity = obj.vj(kb,:)<0; 
+% 
+%                    %% setup
+%                    damp = damp_never;
+%                    f_S = f1;  %density-change
+%                    f_Q = f1;  %forces
+%                    sigmaS = 1*sigma;
+%                    sigmaQ = 0.02*sigma;
+% 
+% 
+%                     %density:
+%                    S = - sigmaS.*(obj.rhoj(kb,:) - obj.rho0j(kb,:));
+%                    obj.drhoj(kb,:) = (obj.drhoj(kb,:).*f_S + S.*damp);         
+%                     %forces:
+%                    Q = - sigmaQ.*(obj.vj(kb,:) - 0);
+%                    obj.Fj_tot(kb,:) = (obj.Fj_tot(kb,:).*f_Q + Q.*damp ) ;
+% 
+% 
+%                    %% stop particels
+%         %            kb_stop = logical ((obj.Xj>=xb(2)));
+%         %            obj.vj(kb_stop) = 0;
+               end
+           end
+          end   
         %%
         function BCnoflow (obj,i)
             boun = obj.bc(i);
@@ -1794,49 +1873,9 @@ classdef sph_particles < handle
             if ~isempty(Imirror)
                 obj.mirrorParticles(Imirror,d(Imirror_local),outer_normal,rho0,v0,p0,e0,m_factor,v_factor,p_factor);
                 obj.comp_pressure();
-            end
-            
-%             if obj.dim == 1
-% %                     obj.comp_volume();
-% %                     obj.comp_pressure();
-%                     
-%                     % use characteristic:
-%                     rho_ref =1;
-%                     v_ref = 0;
-%                     p_ref =0;
-%                     I = 200; % or 1
-%                     
-%                     n = 1;%obj.bc(iboun).outer_normal;
-%                     J1 = -obj.cj(I).^2 .*(obj.rhoj(I) - rho_ref)...
-%                         + (obj.pj(I) - p_ref);
-%                     J2 = obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
-%                         + (obj.pj(I) - p_ref)*n;
-% 
-%                     J3 = - obj.rhoj(I).*obj.cj(I) .* (obj.vj(I,:) - v_ref)...
-%                     + (obj.pj(I) - p_ref)*n;
-%                 
-%                     %switch
-%                     if obj.bc(i).outer_normal < 0 %inflow
-%                         J1=0;
-%                         J2=0;                       
-%                     else
-%                         J3=0;
-%                     end
-% 
-% 
-%                     NN = size(Imirror,1);                   
-%                     Ig = obj.Ighost(end-NN+1:end);            
-%                     obj.rhoj(Ig) = rho_ref + ...
-%                         1./(obj.c0j(Ig).^2).*(-J1+0.5*J2+0.5*J3);
-%                     obj.vj(Ig,:) = v_ref + ...
-%                         1./(2*obj.c0j(Ig).*obj.rho0j(Ig)) * (J2 - J3)*n;
-%                     obj.pj(Ig,:) = p_ref+...
-%                                 0.5*(J2+J3);
-% 
-%               end
-            
+            end                        
         end
-        %%
+        %%        
         function resetData(obj)
              %reset to initial
             obj.Ighost = [];
@@ -1951,13 +1990,21 @@ classdef sph_particles < handle
             disp ('check data');
             %%
             checkIfInDomain(obj)
-            %%
+            %%            
             %check if AedgesXj has equally many in and outgoing
             %connectivities
             if any(find(sum(obj.AedgesXj,1)))
                 keyboard
-            end
+            end                      
+
             %%
+            %amount of neibours:
+            if ~isempty(obj.AedgesXj)
+                nj=sum(abs(obj.AedgesXj(:,obj.active_k_pij)),2);
+                disp (['#neigbhours: min=',num2str(min(nj)),...
+                                  ', max=',num2str(max(nj)),...
+                                  ', mean=',num2str(mean(nj))]);
+            end
         end       
 
     end

@@ -16,6 +16,7 @@ classdef sph_scenario < handle
         scheme      % m | v
         EOS         % ISO (isothermal) | MG (Mie-Gruneisen) | Water | 
         h_const     % is h constant (true) or dependent on density (false) 
+        compOmegaj  % bool - compute correction factor Omega_j (comming from the rho dependency of h)
         %% geometry
         Ntot        % desired amount of particles
         equalmass   % boolean, else equal volume - for initialization (some fluctuation can appear in generation process);
@@ -87,12 +88,13 @@ classdef sph_scenario < handle
         % Constructor
         function obj = sph_scenario(filename)
            % some standard parameter 
-           obj.kernel = 'Wendland'; 
+           obj.kernel = 'M4'; 
            obj.kernel_cutoff = 2;
            obj.scheme = 'm';
            obj.EOS    = 'ISO';
            obj.equalmass = false;
-           obj.h_const   = false;           
+           obj.h_const   = false;
+           obj.compOmegaj= true;
            obj.dt        = [];
            obj.dtfactor  = 0.5;
            obj.tpause    = inf;
@@ -183,7 +185,7 @@ classdef sph_scenario < handle
                obj.kernel_cutoff = 2;
            elseif strcmp(kernel, 'M3') %after violeau (M4 in Price)
                obj.kernel_cutoff = 2;
-           elseif strcmp(kernel, 'M4') %after violeau (M4 in Price)
+           elseif strcmp(kernel, 'M4')
                obj.kernel_cutoff = 2.5;
            elseif strcmp(kernel, 'Gauss')
                obj.kernel_cutoff = 4;

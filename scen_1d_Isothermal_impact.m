@@ -7,7 +7,7 @@ ps = sph_scenario();
 %% general parameter
 ps.Ntot    = 400;
 ps.equalmass = true;
-ps.tend    = 0.25;    
+ps.tend    = 0.25;   
 % ps.tpause  = 0; 
 ps.eta     = 1.2;     
 ps.set_kernel('Gauss');
@@ -20,8 +20,8 @@ ps.plot_dt = 4e-2;
 ps.save_as_movie = false;
 ps.plot_quantity = 'dvpe';
 ps.fixaxes.e = [0.7,3];
-% ps.Neval = ps.Ntot ;
-%ps.Nss = 4;
+ps.Neval = ps.Ntot ;
+% ps.Nss = 4;
 
  %% material parameter
 
@@ -66,9 +66,12 @@ ps.EOS     = 'IdealGas14';
 Gamma= 1.4;
 
 ps.art_diss_para.alpha_mass = 0.3;
-ps.art_diss_para.alpha_energy = 0.5;
 ps.art_diss_para.beta_mass = 0;
+ps.art_diss_para.alpha_viscosity = 1;
 ps.art_diss_para.beta_viscosity = 0;
+ps.art_diss_para.alpha_energy = 0.5;
+ps.art_diss_para.beta_energy = 0;
+
 
 xl=0;
 x0=0.5;
@@ -106,8 +109,8 @@ pR = (Gamma-1)*eR*rhoR;
 ps.exact_sol = exact_rarefactionShock(rhoL,pL,vL,rhoR,pR,vR,Gamma,x0);
 
 %% BC:
-ps.add_bc_noflow(xl,0,-1); %left
-ps.add_bc_noflow(xr,0,1); %right
+ps.add_bc('noflow',xl,0,-1); %left
+ps.add_bc('noflow',xr,0,1); %right
 % ps.add_bc_nr(1,0,1);
 
 %% -----------------------------------------------------
