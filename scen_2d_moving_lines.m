@@ -14,13 +14,13 @@ ps.scheme  = 'v';
 %IO
 ps.plot_dt = 1e-2;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'p';
+ps.plot_quantity = '';
 ps.fixaxes.p = [-1,1];
 
 
 %% material parameter
 rho0 = 1;     %relativ density
-c0   = 200;
+c0   = 20;
 
 %% domain
 ps.Omega = [0, 1;  %x

@@ -46,6 +46,8 @@ classdef sph_scenario < handle
         rhoj
         c0j       % speed of sound
         cj
+        MG_Gammaj  % MieGruneisen parameter
+        MG_Sj      % relation between shock and particle velocity
         beta      % for surface tension (scalar)
         mu        % for dissipation
         art_diss_para  % parameters for artificial dissipation (alpha_mass, alpha_viscosity, beta_viscosity, alpha viscosity)
@@ -94,7 +96,7 @@ classdef sph_scenario < handle
            obj.EOS    = 'ISO';
            obj.equalmass = false;
            obj.h_const   = false;
-           obj.compOmegaj= true;
+           obj.compOmegaj= false;
            obj.dt        = [];
            obj.dtfactor  = 0.5;
            obj.tpause    = inf;
@@ -113,6 +115,7 @@ classdef sph_scenario < handle
            obj.g_ext = []; 
 
            %IO
+           obj.plot_dt = inf;
            obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
                                    'p','patches',...
@@ -194,11 +197,17 @@ classdef sph_scenario < handle
            end
         end
         %%
-        function add_geometry(obj,omega_geo, rho0, v0, c0,e0,Nfactor)
+        function add_geometry(obj,omega_geo, rho0, v0, c0,e0,MG_Gamma,MG_S,Nfactor)
             if nargin <6
                 e0 = 0;
-            end           
-            if nargin <7
+            end     
+            if nargin <7                
+                if strcmp(obj.EOS,'MG')
+                    error('Please define some Mie-Gruneisen parameter!');
+                end
+            end
+            
+            if nargin <9
                 Nfactor =1;
             end
             obj.geo(obj.iter_geo).omega_geo = omega_geo;
@@ -206,6 +215,9 @@ classdef sph_scenario < handle
             obj.geo(obj.iter_geo).v0        = v0;
             obj.geo(obj.iter_geo).c0        = c0;
             obj.geo(obj.iter_geo).e0        = e0;
+            obj.geo(obj.iter_geo).MG_Gamma  = MG_Gamma;
+            obj.geo(obj.iter_geo).MG_S      = MG_S;
+
             obj.geo(obj.iter_geo).Nfactor   = Nfactor;
             
             obj.iter_geo = obj.iter_geo +1;
@@ -261,6 +273,8 @@ classdef sph_scenario < handle
                 obj.c0j(I,1)   = obj.geo(i).c0;
                 obj.cj(I,1)    = obj.geo(i).c0;
                 obj.ej(I,1)    = obj.geo(i).e0;
+                obj.MG_Gammaj(I,1)    = obj.geo(i).MG_Gamma;
+                obj.MG_Sj(I,1)    = obj.geo(i).MG_S;
                 obj.rho0j(I,1) = obj.geo(i).rho0;
                 obj.rhoj(I,1)  = obj.geo(i).rho0;
                 obj.Imaterial = [obj.Imaterial;...

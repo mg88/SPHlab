@@ -30,6 +30,7 @@ classdef sph_IO < handle
         con_dt
         con_mass
         con_momentum
+        con_ang_momentum
         con_momentum_diss
         con_e_kin
         con_e_kin_diss
@@ -79,6 +80,7 @@ classdef sph_IO < handle
               %% conservation variables              
               obj.con_mass = [];
               obj.con_momentum =[];
+              obj.con_ang_momentum =[];
               obj.con_momentum_diss =[];
               obj.con_dt = [];
               obj.con_e_kin =[];
@@ -157,7 +159,7 @@ classdef sph_IO < handle
                  obj.t_last_save = obj_particles.t;
             end
             
-            %check for conservation of mass and momentum
+            %check for conservation of mass and momentum            
             save_conservation (obj,obj_particles);
 
         end       
@@ -177,150 +179,223 @@ classdef sph_IO < handle
 
         end
         %%
-        function save_conservation (obj,obj_particles)
-            data=obj_particles;
+        function save_conservation (obj,obj_p)
             %time
             obj.con_dt = [obj.con_dt;
-                          data.t];
+                          obj_p.t];
             
             % conservation of mass
-            massj = data.rhoj(data.Iin).*data.Vj(data.Iin);
+            massj = obj_p.rhoj(obj_p.Iin).*obj_p.Vj(obj_p.Iin);
             obj.con_mass = [obj.con_mass;...
                             sum(massj)];
                         
-            % conservation of momentum (particle inside)
-            momj  = massj * ones(1,data.dim) .* (data.vj_half(data.Iin,:));
+            %% conservation of momentum (particle inside)
+            momj  = massj * ones(1,obj_p.dim) .* (obj_p.vj_half(obj_p.Iin,:));
             obj.con_momentum = [obj.con_momentum;...
                                 sum(momj,1)];
-            
-            % dissipation of momentum  (at half step)          
-            if (~isempty(data.Ighost) && data.compGhost) 
-                momj_diss_add   = data.IOdata_h.vjghost.*(data.mj(data.Ighost)*ones(1,data.dim));                
-                momj_diss_after = data.vj_half(data.Ighost,:).*(data.mj(data.Ighost)*ones(1,data.dim));
-
-                if isempty(obj.con_momentum_diss) %time integration
-                    previous = zeros(1,data.dim); 
-                else
-                    previous = obj.con_momentum_diss(end,:);
+                            
+            %% absorbed momentum:                          
+            nrm=false;
+            Inrc=0;
+            for boun=obj_p.bc
+                if strcmp(boun.type,'nrm')
+                    nrm=true;
+                elseif  strcmp(boun.type,'nrc')                   
+                   % nrc:     
+                   dI = boun.dvj_diss.*(obj_p.mj(boun.kb)*ones(1,obj_p.dim));
+                   Inrc = Inrc + sum(dI,1) *obj_p.dt;   
                 end
-                obj.con_momentum_diss =[obj.con_momentum_diss;...
-                                        sum(momj_diss_after-momj_diss_add,1)+previous];
+            end
+            if (nrm && obj_p.compGhost) 
+                % nrm: dissipation of momentum  (at half step)          
+                momj_diss_add   = obj_p.IOdata_h.vjghost.*(obj_p.mj(obj_p.Ighost)*ones(1,obj_p.dim));                
+                momj_diss_after = obj_p.vj_half(obj_p.Ighost,:).*(obj_p.mj(obj_p.Ighost)*ones(1,obj_p.dim));
+                Inrm = sum(momj_diss_after-momj_diss_add,1);
+            else
+                Inrm = 0;
+            end
+            
+            if isempty(obj.con_momentum_diss) %time integration
+                previous = zeros(1,obj_p.dim); 
+            else
+                previous = obj.con_momentum_diss(end,:);
+            end
+            obj.con_momentum_diss =[obj.con_momentum_diss;...
+                                    Inrc+Inrm+previous];            
+
+            
+            
+            
+            %% angular momentum
+            if obj_p.dim == 2
+                %center of mass:
+%                 Xj_mass_center = [sum(obj_p.mj.*obj_p.Xj(obj_p.Iin,1))/sum(obj_p.mj),...
+%                     sum(obj_p.mj.*obj_p.Xj(obj_p.Iin,2))/sum(obj_p.mj)]                
+                % angular momentum:
+                amomj = obj_p.mj(obj_p.Iin).*((obj_p.Xj(obj_p.Iin,1)).*obj_p.vj_half(obj_p.Iin,2)...
+                       -(obj_p.Xj(obj_p.Iin,2)).*obj_p.vj_half(obj_p.Iin,1));
+                obj.con_ang_momentum = [obj.con_ang_momentum;...
+                                         sum(amomj)];
             end
             
             %energy:
-            if data.dim==2
-                norm_vj_sq = (data.vj_half(data.Iin,1).^2 + data.vj_half(data.Iin,2).^2);
+            if obj_p.dim==2
+                norm_vj_sq = (obj_p.vj_half(obj_p.Iin,1).^2 + obj_p.vj_half(obj_p.Iin,2).^2);
             else
-                norm_vj_sq = data.vj_half(data.Iin,1).^2;
+                norm_vj_sq = obj_p.vj_half(obj_p.Iin,1).^2;
             end
-            e_kin = 0.5 .* data.mj(data.Iin).* norm_vj_sq;
-            e_pot = data.mj(data.Iin).*data.ej_half(data.Iin);
+            e_kin = 0.5 .* obj_p.mj(obj_p.Iin).* norm_vj_sq;
+            e_pot = obj_p.mj(obj_p.Iin).*obj_p.ej_half(obj_p.Iin);
             obj.con_e_kin =[obj.con_e_kin;
-                                  sum(e_kin)];
+                            sum(e_kin)];
             obj.con_e_pot =[obj.con_e_pot;
                             sum(e_pot)];
                         
-            % energy dissipation
-            if (~isempty(data.Ighost) && data.compGhost)
+            % energy dissipation on the boundary (absorbed energy)
+            
+            %nrm:
+            if (nrm && obj_p.compGhost)
                 %dv = data.vj(data.Ighost) - data.IOdata.vjghost;
-                if data.dim==2
-                    norm_vj_sq      = data.vj_half(data.Ighost,1).^2 +...
-                                      data.vj_half(data.Ighost,2).^2;
-                    norm_vj_sq_prev = data.IOdata_h.vjghost(:,1).^2 + ...
-                                      data.IOdata_h.vjghost(:,2).^2;
+                if obj_p.dim==2
+                    norm_vj_sq      = obj_p.vj_half(obj_p.Ighost,1).^2 +...
+                                      obj_p.vj_half(obj_p.Ighost,2).^2;
+                    norm_vj_sq_prev = obj_p.IOdata_h.vjghost(:,1).^2 + ...
+                                      obj_p.IOdata_h.vjghost(:,2).^2;
                 else
-                    norm_vj_sq      = data.vj_half(data.Ighost,1).^2;
-                    norm_vj_sq_prev = data.IOdata_h.vjghost(:,1).^2;
+                    norm_vj_sq      = obj_p.vj_half(obj_p.Ighost,1).^2;
+                    norm_vj_sq_prev = obj_p.IOdata_h.vjghost(:,1).^2;
                 end
                 
-                e_kin_ghost      = 0.5 .* data.mj(data.Ighost).* norm_vj_sq;
-                e_kin_ghost_prev = 0.5 .* data.mj(data.Ighost).* norm_vj_sq_prev;                
+                e_kin_ghost      = 0.5 .* obj_p.mj(obj_p.Ighost).* norm_vj_sq;
+                e_kin_ghost_prev = 0.5 .* obj_p.mj(obj_p.Ighost).* norm_vj_sq_prev;                
                 e_kin_ghost_diff = e_kin_ghost - e_kin_ghost_prev;
                 
-                e_pot_ghost      = data.ej(data.Ighost).*data.mj(data.Ighost);
-                e_pot_ghost_prev = data.IOdata_h.ejghost.*data.mj(data.Ighost);
-                e_pot_ghost_diff = e_pot_ghost - e_pot_ghost_prev;
-                
-
-                if isempty(obj.con_e_kin_diss)
+                e_pot_ghost      = obj_p.ej(obj_p.Ighost).*obj_p.mj(obj_p.Ighost);
+                e_pot_ghost_prev = obj_p.IOdata_h.ejghost.*obj_p.mj(obj_p.Ighost);
+                e_pot_ghost_diff = e_pot_ghost - e_pot_ghost_prev;                
+               
+                Ekin_nrm = sum(e_kin_ghost_diff);
+                Epot_nrm = sum(e_pot_ghost_diff);
+            else
+                Ekin_nrm = 0;
+                Epot_nrm = 0;
+            end
+            
+            
+            %nrc:
+            Ekin_nrc=0;
+            Epot_nrc=0;
+            for boun=obj_p.bc
+                % nrc:     
+                if  strcmp(boun.type,'nrc')                    
+                   %kinetic energy:
+                   dEkin    = obj_p.vj(boun.kb,:).*boun.dvj_diss.*(obj_p.mj(boun.kb)*ones(1,obj_p.dim));
+                   Ekin_nrc = Ekin_nrc + sum(sum(dEkin.^2,2).^0.5) *obj_p.dt;  
+                   %potential energy:
+                   dEpot    = boun.dej_diss .*obj_p.mj(boun.kb);
+                   Epot_nrc = Epot_nrc + sum(dEpot) *obj_p.dt;
+                   
+                end
+            end
+            
+            % save data
+            if isempty(obj.con_e_kin_diss)
                     previous_kin = 0;
                     previous_pot = 0;
                 else                
                     previous_kin = obj.con_e_kin_diss(end);
                     previous_pot = obj.con_e_pot_diss(end);
-                end
-
-                obj.con_e_kin_diss =[obj.con_e_kin_diss;
-                                      sum(e_kin_ghost_diff)+previous_kin];
-                obj.con_e_pot_diss =[obj.con_e_pot_diss;
-                                      sum(e_pot_ghost_diff)+previous_pot];
             end
+            
+            obj.con_e_kin_diss =[obj.con_e_kin_diss;
+                                     Ekin_nrc + Ekin_nrm + previous_kin];
+            obj.con_e_pot_diss =[obj.con_e_pot_diss;
+                                     Epot_nrc + Epot_nrm + previous_pot];
         end
         %%
         function plot_conservation (obj)
+            %set flags
+            plotmass = any(diff(obj.con_mass) ~= 0);
+            plotmomentum = ~isempty(obj.con_momentum);
+            plotangmomentum = ~isempty(obj.con_ang_momentum);
+            plotenergy = ~isempty(obj.con_e_pot) && ~isempty(obj.con_e_kin);
+            
+            %subplot counter:
             fig=figure;
-            nplot = 3; 
-            iplot = 1;            
-            if any(diff(obj.con_mass) ~= 0)  % plot only if change of mass occurs              
+            nplot = plotmass + plotmomentum + plotangmomentum + plotenergy;            
+            iplot = 1;
+            
+            if plotmass  % plot only if change of mass occurs              
                 subplot(nplot,1,iplot)
                 iplot=iplot+1;
                 plot(obj.con_dt,obj.con_mass)
                 title('evolution of mass');
                 xlabel('t'); ylabel('mass')
-            else
-                nplot = nplot-1;
             end
             
             %momentum
-            subplot(nplot,1,iplot)
-            grid on;
-            hold on;
-            iplot=iplot+1;
-            %components (in 2d)
-            dim = size(obj.con_momentum,2);            
-            if dim ==1
-                plot(obj.con_dt,obj.con_momentum); 
-                leg = 'I         ';
-                %dissipation:
-                if ~isempty(obj.con_momentum_diss)
-                    plot(obj.con_dt,obj.con_momentum_diss,':');   
-                    plot(obj.con_dt,obj.con_momentum_diss+obj.con_momentum,'k-.');   
-                    leg = [leg;'I_{diss}  ';'I_{tot}   '];
+            if plotmomentum
+                subplot(nplot,1,iplot)
+                grid on;
+                hold on;
+                iplot=iplot+1;
+                %components (in 2d)
+                dim = size(obj.con_momentum,2);            
+                if dim ==1
+                    plot(obj.con_dt,obj.con_momentum); 
+                    leg = 'I         ';
+                    %dissipation:
+                    if ~isempty(obj.con_momentum_diss)
+                        plot(obj.con_dt,obj.con_momentum_diss,':');   
+                        plot(obj.con_dt,obj.con_momentum_diss+obj.con_momentum,'k-.');   
+                        leg = [leg;'I_{diss}  ';'I_{tot}   '];
+                    end
+                    mom_norm = abs(obj.con_momentum);           
+
+                else
+                    mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
+                    plot(obj.con_dt,mom_norm);    
+                    leg = '|I|       ';
+                    %components:
+                    for i = 1: dim
+                        plot(obj.con_dt,obj.con_momentum(:,i)) %x
+                        leg = [leg;'I_{x',num2str(i),'}    '];
+                    end
+                    %dissipation:
+                    mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
+                    if ~isempty(mom_norm_diss)
+                        plot(obj.con_dt,mom_norm_diss,':');   
+                        plot(obj.con_dt,mom_norm_diss+mom_norm,'k-.');   
+                        leg = [leg;'|I_{diss}|';'|I_{tot}| '];
+                    end                                        
                 end
-                mom_norm = abs(obj.con_momentum);           
-                
-            else
-                mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
-                plot(obj.con_dt,mom_norm);    
-                leg = '|I|       ';
-                %components:
-                for i = 1: dim
-                    plot(obj.con_dt,obj.con_momentum(:,i)) %x
-                    leg = [leg;'I_{x',num2str(i),'}    '];
-                end
-                %dissipation:
-                mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
-                if ~isempty(mom_norm_diss)
-                    plot(obj.con_dt,mom_norm_diss,':');   
-                    plot(obj.con_dt,mom_norm_diss+mom_norm,'k-.');   
-                    leg = [leg;'|I_{diss}|';'|I_{tot}| '];
-                end
+                legend(leg);
+                title('evolution of momentum (at half step)');
+                xlabel('t'); ylabel('momentum ')
             end
             
-
-           
-            legend(leg);
-            title('evolution of momentum (at half step)');
-            xlabel('t'); ylabel('momentum ')
+            if plotangmomentum
+                subplot(nplot,1,iplot)
+                grid on;
+                hold on;
+                iplot=iplot+1; 
+                plot(obj.con_dt,obj.con_ang_momentum)
+                title('evolution of angular momentum');
+                xlabel('t'); ylabel('angular momentum')
+                ang_mom_norm = sum(obj.con_ang_momentum.*obj.con_ang_momentum,2).^0.5;
+            else
+                ang_mom_norm=[];
+            end
             
-            %energy
-            subplot(nplot,1,iplot)   
-            hold on;
-            grid on
-            if ~isempty(obj.con_e_pot) && ~isempty(obj.con_e_kin) && ~any(obj.con_e_kin==0)                
+            if plotenergy
+                %energy
+                subplot(nplot,1,iplot)   
+                hold on;
+                grid on
+                etot = obj.con_e_pot+obj.con_e_kin;
                 plot(obj.con_dt,obj.con_e_pot,...
                      obj.con_dt,obj.con_e_kin,...
-                     obj.con_dt,obj.con_e_pot+obj.con_e_kin,'--');  
+                     obj.con_dt, etot,'--');  
                  leg = ['e_{pot}  ';'e_{kin}  ';'e_{tot}  '];
                  if ~isempty(obj.con_e_pot_diss)
                      plot(obj.con_dt,obj.con_e_pot_diss,':',...
@@ -328,23 +403,32 @@ classdef sph_IO < handle
                         obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
                      leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
                      plot(obj.con_dt,obj.con_e_pot+obj.con_e_kin+...
-                                     -(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
+                                     +(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
                      leg = [leg;'sum(e)   '];
                  end
                  legend (leg);
                  title('energy (at half step)');
-            else
-                warning('cannot plot energy');
             end
+            
             %move figure to the left side (only when not docked)
             if strcmp(get(0,'DefaultFigureWindowStyle'),'normal')
                 figpos=fig.Position;
                 figpos(2)=0;
                 fig.Position =figpos;
             end
+          
+            % output in console:
             if ~isempty(mom_norm)
-                disp (['## relative dissipation of momentum = ',...
-                    num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);
+                disp (['## rel. diss. of momentum = ',...
+                    num2str(abs((mom_norm(end)-mom_norm(1))/mom_norm(1))),' ##']);                
+            end
+            if ~isempty(ang_mom_norm)
+                disp (['## rel. diss. of angular momentum = ',...
+                        num2str(abs((ang_mom_norm(end)-ang_mom_norm(1))/ang_mom_norm(1))),' ##']);
+            end
+            if ~isempty(etot)
+                disp (['## rel. diss. of tot. energy = ',...
+                        num2str(abs((etot(end)-etot(1))/etot(1))),' ##']);
             end
         end
         %% super sampling
@@ -427,9 +511,10 @@ classdef sph_IO < handle
                                     1)/sumW; %sum all rows
            end
         end        
-        %% %%%  Plotting functions %%% %%
-        
+        %% %%%  Plotting functions %%% %%        
         function p=plot_trisurf(~,x,y,z,max_r)  
+            %seperate because it is also needed as an extra routine for a
+            %comparison analysis
             xy   = complex(x,y);
             tri    = delaunay(x,y);
             e    = abs(xy(tri) - xy(circshift(tri,-1,2)));
@@ -438,56 +523,7 @@ classdef sph_IO < handle
             p=trisurf(t2,x,y,z);
             %trimesh(t2,x,y,z)
         end  
-        %%
-        function p=plot_torus(~,Ar,Az,Ad)
-            warning('super slow')
-            keyboard
-            N = size(Ad,1);
-            for i=1:10:N
-                 d = Ad(i);
-                 r  = Ar(i);
-                 zz = Az(i);
-                 [u,v]=meshgrid(0:30:60);                 
-                 x=(r+d*cosd(v)).*cosd(u);
-                 y=(r+d*cosd(v)).*sind(u);
-                 z=d*sind(v)+zz;
-                 p=surfc(x,y,z);
-                 hold on
-                 disp([num2str(i),'/',num2str(N)]);
-            end
-        end
-        %%
-        function p=plot_ring(~,xx,yy)
-            N = size(xx,1);
-            Ntheta=20;
-            theta = linspace(0,pi/3,Ntheta);
-            for i=1:N 
-                r = abs(yy(i));
-                y = r*(cos(theta));
-                z = r*(sin(theta));
-                x = xx(i)*ones(Ntheta,1);
-                p=plot3(x,y,z,'-b');     
-                disp([num2str(i),'/',num2str(N)]);
-            end
-        end
-        %%
-        function p=plot_ringcloud(~,xx,yy,mat)
-           colo='gbkrmcy';
-           %each material gets his own color
-           Ntheta=20; %amount of points in the axis
-           Theta_minus = 0;
-           Theta_plus  = pi/2;
-           for m = 1:size(mat,1)
-                I = mat(m,1):mat( m,2);                
-                N=size(xx(I),1);
-                theta = linspace(Theta_minus,Theta_plus,Ntheta);
-                r = abs(yy(I));
-                y = reshape(r*(cos(theta)),1,N*Ntheta);
-                z = reshape(r*(sin(theta)),1,N*Ntheta);
-                x = reshape(xx(I)*ones(1,Ntheta),1,N*Ntheta);
-                p = plot3(x,y,z,'.','color',colo(mod(m,length(colo))+1));%,'MarkerFaceColor','auto');  
-           end
-        end
+
         %%
         function plot_data(obj,obj_p,A_quantities)
             %% some functions
@@ -528,8 +564,7 @@ classdef sph_IO < handle
                 xlim([data.Omega(1) data.Omega(2)]);
                 legend('drho','drho_{diss}');
             end
-            
-           
+                       
             function scatterPoints=plot_patches(x,y,z,sizeOfCirlce,opacity)
                 tt= 0:pi/10:2*pi;
                 rep_x = repmat(x',[size(tt,2),1]);
@@ -542,8 +577,6 @@ classdef sph_IO < handle
                                        rep_z,'edgecolor','none');
                 alpha(scatterPoints,opacity);
             end 
-
-
                      
             function [dat_max,p]=plot_field(x,dat)
                p=quiver(x(:,1),...
@@ -553,17 +586,157 @@ classdef sph_IO < handle
                dat_norm = sum(dat.^2,2).^0.5;
                dat_max = max(dat_norm);
             end
-           %% start of routine
-           if nargin < 3 %use prescribed quantities to plot if not given
+            
+            function p=plot_torus(Ar,Az,Ad)
+                warning('super slow')
+                keyboard
+                N = size(Ad,1);
+                for i=1:10:N
+                     d = Ad(i);
+                     r  = Ar(i);
+                     zz = Az(i);
+                     [u,v]=meshgrid(0:30:60);                 
+                     X=(r+d*cosd(v)).*cosd(u);
+                     Y=(r+d*cosd(v)).*sind(u);
+                     Z=d*sind(v)+zz;
+                     p=surfc(X,Y,Z);
+                     hold on
+                     disp([num2str(i),'/',num2str(N)]);
+                end
+            end
+            
+            function p=plot_ring(xx,yy)
+                N = size(xx,1);
+                Ntheta=20;
+                theta = linspace(0,pi/3,Ntheta);
+                for i=1:N 
+                    r = abs(yy(i));
+                    Y = r*(cos(theta));
+                    Z = r*(sin(theta));
+                    X = xx(i)*ones(Ntheta,1);
+                    p=plot3(X,Y,Z,'-b');     
+                    disp([num2str(i),'/',num2str(N)]);
+                end
+            end %2d-rings in the 3dspace for axisymmetric plots
+            
+            function p=plot_ringcloud(xx,yy,mat)
+               colo='gbkrmcy';
+               %each material gets his own color
+               Ntheta=20; %amount of points in the axis
+               Theta_minus = 0;
+               Theta_plus  = pi/2;
+               for m = 1:size(mat,1)
+                    I = mat(m,1):mat( m,2);                
+                    N=size(xx(I),1);
+                    theta = linspace(Theta_minus,Theta_plus,Ntheta);
+                    r = abs(yy(I));
+                    Y = reshape(r*(cos(theta)),1,N*Ntheta);
+                    Z = reshape(r*(sin(theta)),1,N*Ntheta);
+                    X = reshape(xx(I)*ones(1,Ntheta),1,N*Ntheta);
+                    p = plot3(X,Y,Z,'.','color',colo(mod(m,length(colo))+1));%,'MarkerFaceColor','auto');  
+               end
+            end            
+            
+             function add_fluxes(obj_p,datname)               
+               %for boun
+               datnamedisp=['d',datname,'_{diss}'];
+               scalefactor = 10;
+               dx_factor = 1;
+               len=(obj_p.Omega(1,2)-obj_p.Omega(1,1))/scalefactor;
+               for iboun = 1:size(obj_p.bc,2)                   
+                   boun=obj_p.bc(iboun);
+                   if ~strcmp(boun.type,'nrc') %if not a nr-bc continue
+                       continue
+                   end
+                   if ~isfield(boun,'kb') %handling older data sets (just do not plot that)
+                       continue
+                   end
+                   p1=boun.p1;
+                   normal =boun.outer_normal;
+                   kbb=find(boun.kb);
+                   X=obj_p.Xj(kbb,:);
+                   NN=size(X,1);               
+                   dx = dx_factor *mean(obj_p.Vj(kbb).^(1/obj_p.dim));
+                   if obj_p.dim==1
+                       ax=axis;
+                       y0=0.5*(ax(4)+ax(3));
+                       dat = sum(boun.(['d',datname,'_diss']));%/5e8;                                            
+                         
+                     %plotting:                  
+                       xright = mean(X)+(ax(2)-ax(1))/scalefactor*normal;
+                       plot(xright*[1,1],[y0,y0+dat],'r-x')
+                       text(xright*1.05,y0,[datnamedisp,'=',num2str(dat,'%10.2e')])
+                       axis(ax)
+                   else %2d                             
+                      if normal(1)==0  % discretisize vectical 
+                           kx=1;
+                           ky=2;                       
+                       elseif normal(2)==0
+                           kx=2;
+                           ky=1;
+                       else
+                           error('todo');
+                       end
+                       xleft  = min(X(:,kx))-dx/2;
+                       xright = max(X(:,kx))+dx/2;
+                       Nc = ceil((xright-xleft)/dx);
+    %                    dx =(xright-xleft)/n;
+
+                       cell_of_X = floor(ones(NN,1)*(Nc ./ (xright-xleft))'...
+                        .* (X(:,kx) - ones(NN,1)*(xleft)'))...
+                        +1; %in which sector is the particle
+
+                       %compute data (simply sum up all fluxes in the slide
+                       dat=zeros(Nc,obj_p.dim);
+                       for i = 1:Nc
+                          dat(i,:) = sum(boun.(['d',datname,'_diss'])(cell_of_X==i,:),1);%/5e8;                                            
+                       end
+
+                       %just take the norm
+                       dat = sum(dat.^2,2).^0.5;
+                       %compute max and scale data
+                       datmax=(max(abs(dat)));
+                       if datmax == 0
+                           continue
+                       end
+                       y0= p1(ky)+normal(ky)*1.5*len;                         
+                       %plot reference box
+                       if kx==1 %to the top/bottom
+                           rectangle('Position',[xleft,y0-len,xright-xleft,2*len],'LineStyle',':')
+                           plot([xleft;xright],[y0,y0],'b');
+                       else %to the right/left
+                           rectangle('Position',[y0-len,xleft,2*len,xright-xleft],'LineStyle',':')
+                           plot([y0,y0],[xleft;xright],'b');
+                       end
+                       
+                       dat1= normal(ky)*dat*len/datmax;
+
+                       %plot data
+                       if kx==1 %to the top/bottom
+                            plot(xleft:dx:xright,y0+dat1','rx')
+                            text(xright,y0,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
+                       else %to the right/left
+                            plot(y0+dat1',xleft:dx:xright,'rx')
+                            text(y0,xright+0.2*len,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
+
+                       end 
+                   end
+               end   
+            end
+            
+            
+            %% start of routine
+          if nargin < 3 %use prescribed quantities to plot if not given
                A_quantities = obj.plot_quantity;
            end
             
            if ~isempty(obj.mfigure)
-               %do not change the focos (silent update of the figure)
-                set(groot,'CurrentFigure',obj.mfigure)
+               %do not change the focus (silent update of the figure)
+                set(groot,'CurrentFigure',obj.mfigure)               
            else
                figure %open new figure
            end
+           
            nplot = length(A_quantities);
            if nplot <=3    
                nxplot = nplot;
@@ -577,11 +750,15 @@ classdef sph_IO < handle
            t   = obj_p.t;
            mat = obj_p.Imaterial_with_boun;
            title_additive = ['; t=',num2str(t,'%10.3e'),'; N= ',num2str(obj_p.N)];
-           clf %clear figure
+           
            
            for quantity = A_quantities;
-               ab=subplot(nyplot,nxplot,iplot);
+               if nplot > 1
+                  subplot(nyplot,nxplot,iplot);
+               end
+               cla %clear axis
                hold on;
+               axis auto
                if quantity == 'x'
                    dat_name = '';
                    name = 'position';
@@ -671,16 +848,16 @@ classdef sph_IO < handle
                elseif obj_p.dim == 2
                    if quantity == 'x'
                       if strcmp (style,'ring')         
-                            plot_ring(obj,x(:,1),x(:,2));
+                            plot_ring(x(:,1),x(:,2));
                             view([-0.3,-1,1]);                                
                             axis equal
                       elseif strcmp (style,'ringcloud')         
-                            plot_ringcloud(obj,x(:,1),x(:,2),mat);
+                            plot_ringcloud(x(:,1),x(:,2),mat);
                             view([-0.3,-1,1]);                                
                             axis equal
                       elseif strcmp (style,'torus')         
                             sizeOfCirlce = obj_p.hj;
-                            plot_torus(obj,x(:,1),x(:,2),sizeOfCirlce);
+                            plot_torus(x(:,1),x(:,2),sizeOfCirlce);
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -690,7 +867,7 @@ classdef sph_IO < handle
                           plot_scatter(x(:,1),x(:,2),mat); 
                           axis equal
                       end
-                   elseif any(quantity == 'pdem') %perssure, density, energy -> scalar
+                   elseif any(quantity == 'pdem') %perssure, density, energy, massflux -> scalar
                         if strcmp (style,'trisurf')
                             plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
@@ -723,15 +900,22 @@ classdef sph_IO < handle
                             view([0,-1,0]);
                         else
                             error([style, '- plotstyle is not supported']);
-                        end
+                        end                                                
                    elseif any(quantity == 'vf') % velocity, forces -> field
                            dat_max = plot_field(x(obj_p.Iin,:),obj_p.(dat_name)(obj_p.Iin,:));
                            axis equal
                            title_additive= [title_additive,'; max|',quantity,'|=',num2str(dat_max)];
                    else
                        error([obj.plotstyle, '- plotstyle is not supported']);
-                   end                   
+                   end    
+                   
+
                end 
+              % plot leaving fluxes on the boundary:
+               if any(quantity == 'vd')
+                   add_fluxes(obj_p,dat_name);
+               end
+               
                title([name,title_additive]);
                title_additive='';
                %% plot additional info

@@ -14,7 +14,7 @@ ps.set_kernel('Gauss');
 
 ps.scheme   = 'm';
 ps.h_const  = false;
-
+ps.compOmegaj=true;
 %IO
 ps.plot_dt = 4e-2;  
 ps.save_as_movie = false;
@@ -111,7 +111,6 @@ ps.exact_sol = exact_rarefactionShock(rhoL,pL,vL,rhoR,pR,vR,Gamma,x0);
 %% BC:
 ps.add_bc('noflow',xl,0,-1); %left
 ps.add_bc('noflow',xr,0,1); %right
-% ps.add_bc_nr(1,0,1);
 
 %% -----------------------------------------------------
 % generate particles

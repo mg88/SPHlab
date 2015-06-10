@@ -5,24 +5,24 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot      = 200;
+ps.Ntot      = 300;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
-%  ps.dtfactor  = 0.02;
-ps.tend      = 2.8; 
+%   ps.dtfactor  = 0.01;
+ps.tend      = 2.5; 
 % ps.tpause   = 1e-2;%0.9:0.02:2;%1.0:0.2:3;
 ps.eta     = 1.2;     
-ps.set_kernel('Gauss');
+ps.set_kernel('M4');
 
 ps.scheme  = 'm';
-ps.EOS     = 'MG';
+ps.EOS     = 'ISO';
 e0 = 0;
 % ps.EOS     = 'IdealGas53'; 
 % e0 = 1.5;
 
 ps.h_const   = false;
-ps.compOmegaj = true;
 %experimental settings:
+ps.compOmegaj = false;
 % ps.exp_settings.tweakmass = true;
 
 
@@ -30,11 +30,11 @@ ps.compOmegaj = true;
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
-ps.plot_quantity = 'pve';  %p
-ps.fixaxes.v = [-0.05, 0.05];
+ps.plot_quantity = 'vp';  %p
+ps.fixaxes.v = [-0.15, 0.85];
 % ps.fixaxes.p = [0.995, 1.005];
-ps.fixaxes.p = [-3e-2, 3e-2];
-% ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
+ps.fixaxes.p = [-1e-0, 1e-0];
+ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
 ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
 
@@ -43,13 +43,17 @@ ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
 ps.save_dt = 5e-2;
 ps.write_data = false;
 ps.output_name ='data/riemann_boun_mass';
+ps.save_as_movie = false;
+ps.movie_name = '1Driemann_Ma0.7';
  %% material parameter
 rho0 = 1;     % density
 c0   = 1.0; 
-
+MG_Gamma = 2; %(alu)
+MG_S     = 1.338;
 % ps.art_diss_para.alpha_mass = 0.5;
-% ps.art_diss_para.alpha_energy = 0.5;
-% ps.art_diss_para.beta_mass = 0;
+%  ps.art_diss_para.alpha_energy = 0;
+%  ps.art_diss_para.beta_energy = 0;
+ % ps.art_diss_para.beta_mass = 0;
 % ps.art_diss_para.beta_viscosity = 0;
 %% domain         
 ps.Omega = [-2.7, 2.7]; 
@@ -59,21 +63,21 @@ xl=-1.5;
 xm=0.3;
 xr=1.5;
 %left
-omega_geo = [xl,-xm]; %x
-v0   = -0.00;
-ps.add_geometry(omega_geo, rho0, v0, c0,e0)
+% omega_geo = [xl,-xm]; %x
+% v0   = -0.00;
+% ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 % set BC
-ps.add_bc('nrc',xl,0,-1);
+% ps.add_bc('nrc',xl,0,-1);
 
 %middle
 omega_geo = [-xm,xm]; %x
-v0   = 0.02;
-ps.add_geometry(omega_geo, rho0, v0, c0,e0)
+v0   = 0.1;
+ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 
 % right
 omega_geo = [xm,xr]; %x
 v0   = 0.00;
-ps.add_geometry(omega_geo, rho0, v0, c0,e0)
+ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %% set BC
 ps.add_bc('nrc',xr,0,1);
 

@@ -4,20 +4,20 @@
 close all; clear; clc;
 ps = sph_scenario();
 %% general parameter
-ps.Ntot    = 2000;
+ps.Ntot    = 500;
 % ps.Ntot    = [319,1680];
-ps.tend    = 0.8;   
+ps.tend    = 1.8;   
 %ps.dtfactor  =0.1;
 
-ps.eta     = 1.2;     
-ps.set_kernel('Gauss');
+ps.eta     = 1.7;     
+ps.set_kernel('M4');
 
 %IO
 ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
-ps.plot_quantity = 'xvp';%'pv';
+ps.plot_quantity = 'vd';%'pv';
 ps.plot_style.p = 'trisurf';% 'plot3';patches
-ps.plot_style.d = 'trisurf';
+% ps.plot_style.d = 'trisurf';
 ps.fixaxes.p = [-0.5,0.5];
 %ps.fixaxes.d = [1-1e-2,1+1e-2];
 %output
@@ -27,7 +27,7 @@ ps.output_name ='data/riemann2d_boun';
 
  %% material parameter
 rho0 = 1;   
-c0   = 2;
+c0   = 1;
 ps.EOS     = 'MG';
 
 %ps.art_diss_para.alpha_mass = 0;
@@ -50,7 +50,7 @@ h2 = 0.1;
 %left
 omega_geo = [l,interface; %x
              h1,h2]; %y
-v0    = [0.4,0];
+v0    = [0.8,0];
 ps.add_geometry(omega_geo, rho0, v0, c0)
              
 % right

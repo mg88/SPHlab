@@ -26,6 +26,8 @@ ps.fixaxes.d = [1-1e-3,1+1e-3];
 %% material parameter
 rho0 = 1.0;  
 c0   = 10;
+MG_Gamma = 2; %(alu)
+MG_S     = 1.338;
 ps.EOS     = 'MG';
 
 %% domain
@@ -40,7 +42,7 @@ h2= 0.9;
 omega_geo = [l,r;
              h1,h2];        
 v0 = [0,0];
-ps.add_geometry(omega_geo, rho0, v0, c0)
+ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
              
 %% set BC
 %no-reflecting bc right
