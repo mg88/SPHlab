@@ -37,7 +37,7 @@ classdef sph_scenario < handle
         %bc
         damping_area % [lower-left point, upper-right point]^n
         mirrorParticlesj
-        bc;       %'p1';'p2'; points on the boundary line 
+        bc;       %'p1'; point on the boundary line 
                   %'outer_normal'
                   %'damping_area' (experimantal)
         
@@ -118,12 +118,12 @@ classdef sph_scenario < handle
            obj.plot_dt = inf;
            obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
-                                   'p','patches',...
-                                   'd','patches',...
-                                   'm','patches',...
+                                   'p','trisurf',...
+                                   'd','trisurf',...
+                                   'm','trisurf',...
                                    'v','quiver',...
                                    'f','quiver',...
-                                   'e','patches');
+                                   'e','trisurf');
            obj.Neval = 0;
            obj.Nss   = 1; %(no supersampling)
            
@@ -204,6 +204,9 @@ classdef sph_scenario < handle
             if nargin <7                
                 if strcmp(obj.EOS,'MG')
                     error('Please define some Mie-Gruneisen parameter!');
+                else
+                    MG_Gamma = 0; %just set something
+                    MG_S = 0;
                 end
             end
             
@@ -260,12 +263,35 @@ classdef sph_scenario < handle
             for i = 1:size(obj.geo,2)
                 %create geometry
                 if dim == 1
-                    [x,Vparticle,I] = add_line(obj,obj.geo(i).omega_geo, obj.geo(i).N);                    
+                    [x,Vparticle] = add_line(obj,obj.geo(i).omega_geo, obj.geo(i).N);                    
                 elseif dim == 2
-                    [x,Vparticle,I] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N);                                        
+                    [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N);                                        
                 else
                     error('only dim=1,2 are supported');
                 end
+                
+                % cut on boundary, remove particles:
+                for boun = obj.bc
+                   NN=size(x,1);
+                   bp=boun.bp;
+                   n =boun.outer_normal;
+                   %compute distance to boundary point (in normal
+                   %direction)
+                   d = sum((x- (ones(NN,1)*bp)) .* (ones(NN,1)*n),2);
+                   % negativ distance is ok, delete particles with positive
+                   % distance
+                   Igood = d<0;
+                   x=x(Igood,:);
+                   if any(d>=0)
+                      disp('cut on boundary - remove particles') 
+                   end                  
+                end                
+                
+                %update indice iterator
+                Np= size(x,1);
+                I = (obj.iter : obj.iter+Np-1)';
+                obj.iter = obj.iter+Np;
+                
                 %set properties:
                 obj.Xj(I,:)    = x;
                 obj.Vj(I,:)    = Vparticle;
@@ -284,11 +310,10 @@ classdef sph_scenario < handle
             end
         end
         %%
-        function add_bc(obj,type,p1,p2,outer_normal) %type: nr-c,nr-m,nr-p,noflow
+        function add_bc(obj,type,bp,outer_normal) %type: nr-c,nr-m,nr-p,noflow
             obj.bc(obj.iter_boun).type = type;
-            obj.bc(obj.iter_boun).outer_normal = outer_normal;
-            obj.bc(obj.iter_boun).p1 = p1; 
-            obj.bc(obj.iter_boun).p2 = p2;
+            obj.bc(obj.iter_boun).outer_normal = outer_normal./norm(outer_normal);
+            obj.bc(obj.iter_boun).bp = bp; %boundary point 
 
             obj.bc(obj.iter_boun).damping_area = [];
             obj.iter_boun = obj.iter_boun +1;           
@@ -326,19 +351,15 @@ classdef sph_scenario < handle
             end
         end        
         %%
-        function [xy,Vparticle,I] = add_rectangle(obj,omega_geo, N) %for 1 and 2 dimension
+        function [xy,Vparticle] = add_rectangle(obj,omega_geo, N) %for 1 and 2 dimension
             [xy,dxy] = rectangle (obj,omega_geo, N);
             % Volume of one particle
             Vparticle = prod(dxy);          
-            Np = size(xy,1);
-            %update iterator
-            I = (obj.iter : obj.iter+Np-1)';
-            obj.iter = obj.iter+Np;
         end
         %%           
-        function [xy,Vparticle,I] = add_line(obj,omega_geo, N)
+        function [xy,Vparticle] = add_line(obj,omega_geo, N)
             %use more general function
-            [xy,Vparticle,I] = add_rectangle(obj,omega_geo, N);
+            [xy,Vparticle] = add_rectangle(obj,omega_geo, N);
         end        
         %%
         function dx = dx_min (obj)

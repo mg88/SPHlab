@@ -47,6 +47,13 @@ classdef sph_particles < handle
         dej
         dej_diss
         %
+        c1j_half
+        c2j_half
+        c3j_half
+        c4j_half
+        c4j
+        dc4j
+        %
         %connectivity ([indice of startpoint, indice of endpoint]^ammount of connections
         pij  
         %all active connection of pij in two seperate arrays 
@@ -386,7 +393,7 @@ classdef sph_particles < handle
         function update_dt(obj) 
             if isempty(obj.dt_fix) % only if timestep is not fixed
                 if obj.dim == 1
-                    obj.dt = obj.dtfactor * min(obj.hj./(abs(obj.cj + obj.vj)));
+                    obj.dt = obj.dtfactor * min(obj.hj./(obj.cj + abs(obj.vj)));
                 else
                     obj.dt = obj.dtfactor * min(obj.hj./(obj.cj + sum(obj.vj(:,1).^2 + obj.vj(:,2).^2,2).^(0.5)));
                 end
@@ -1308,7 +1315,10 @@ classdef sph_particles < handle
                     (obj.mj(obj.Ii).*obj.mj(obj.Ij) .*... %hj
                     (p_rho_omega_j(obj.Ij).*obj.dWij_hj)...  %<- change here
                     *ones(1,obj.dim)).*obj.xij_h(obj.active_k_pij,:));
-
+              
+%                 if any(qFj_int_ij)
+%                     keyboard
+%                 end
                 
                 %spread fluxes to the nodes
                 obj.Fj_int = obj.AedgesXj * qFj_int_ij;  
@@ -1517,7 +1527,63 @@ classdef sph_particles < handle
                                              obj.dej_diss(obj.Icomp,:);
             end
         end
-        %%                 
+        
+        %% remove?
+        function comp_dc4j(obj)
+            % compute half-step vaules first
+            comp_characteristics_half(obj);
+            
+            
+            obj.dc4j  = 0*obj.dc4j; 
+            qrho_ij = zeros(size(obj.pij,1),1);
+            qrho_ji = zeros(size(obj.pij,1),1);
+                
+            qrho_ij(obj.active_k_pij,:) =  ... % i-> j %hi
+                obj.mj(obj.Ij) .*... 
+                sum(... %scalar product v*n 
+                (obj.vj(obj.Ii,:)-obj.vj(obj.Ij,:)) .*...
+                (obj.dWij_hi*ones(1,obj.dim)).*obj.xij_h((obj.active_k_pij),:)...
+                ,2);
+            qrho_ji(obj.active_k_pij,:) =  ... % j -> i %hj
+                obj.mj(obj.Ii).*...
+                 sum(... %scalar product v*n 
+                (obj.vj(obj.Ij,:)-obj.vj(obj.Ii,:)) .*...
+                (obj.dWij_hj*ones(1,obj.dim)).*-obj.xij_h((obj.active_k_pij),:)...
+                ,2);
+
+
+            %add up all the corresponding density flux in each node
+            obj.drhoj = ((obj.AedgesXj>0) * qrho_ij +...
+                        ( obj.AedgesXj<0) * qrho_ji)./obj.Omegaj;  
+
+        end
+        %% remove?
+        function comp_characteristics_half(obj)           
+            % one should use pj_half!!!
+            I=obj.Iin;
+            
+            rho_ref = 1;
+            p_ref = 0;
+            c_ref = 1;
+            v_ref = 0;
+            n = 1;
+            
+            %vertical perturbation
+            dv = (obj.vj(I,:) - v_ref) - (obj.vj(I,:) - v_ref)*n';
+            
+            %with transformation:
+            obj.c1j_half= -c_ref.^2 .*(obj.rhoj_half(I) - rho_ref)...
+                + (obj.pj(I) - p_ref);
+            obj.c2j_half= obj.rhoj(I).*c_ref .* dv;
+            obj.c3j_half= obj.rhoj(I).*c_ref .* (obj.vj(I,:) - v_ref)*n'...
+                + (obj.pj(I) - p_ref);
+%             obj.c4j= - obj.rhoj(I).*c_ref .* ((obj.vj(I,:) - v_ref)*n')...
+%             + (obj.pj(I) - p_ref);
+            
+            % per integration
+            obj.c4j_half = obj.c4j(I) + 0.5 * obj.dc4j(I);
+        end        
+        %%
         function BC(obj)
             resetData(obj)
             for iboun = 1:size(obj.bc,2)
@@ -1538,9 +1604,14 @@ classdef sph_particles < handle
         end
         %%          
         function BCnrc_init (obj,iboun)
-            if obj.firststep %search for the boundary particles and set reference
+            if obj.firststep %search for the boundary particles and set reference (one time in the beginning)
                dx = mean(obj.Vj)^(1/obj.dim);
-               obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< 3*dx;
+%               obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< 3*obj.eta*dx;
+               n =  obj.bc(iboun).outer_normal;
+               bp = obj.bc(iboun).bp;
+               obj.bc(iboun).kb = abs(sum((obj.Xj- (ones(obj.N,1)*bp)) .* ...
+                                             (ones(obj.N,1)*n) ...
+                                         ,2)) < 3*obj.eta*dx;
                obj.bc(iboun).rho_ref = obj.rhoj(obj.bc(iboun).kb);
                obj.bc(iboun).p_ref   = obj.pj(obj.bc(iboun).kb);
                obj.bc(iboun).v_ref   = obj.vj(obj.bc(iboun).kb,:); 
@@ -1571,7 +1642,7 @@ classdef sph_particles < handle
             v_ref = obj.bc(iboun).v_ref;
             p_ref = obj.bc(iboun).p_ref;
             rho_ref = obj.bc(iboun).rho_ref;
-            c_ref=obj.c0j(kbb,:);
+            c_ref = obj.c0j(kbb,:);
 
             %or dW normal?
             n = obj.bc(iboun).outer_normal;
@@ -1637,7 +1708,20 @@ classdef sph_particles < handle
 
             J3 = - obj.rhoj(kbb).*c_ref .* ((vjkbb - v_ref)*n')...
             + (pjkbb - p_ref);
-            
+%             if any(J2)
+%                 y=J1';
+%                 x=obj.Xj(kbb)';
+%                 xx=obj.Xj(end)+(obj.Xj(end)-obj.Xj(end-1));
+%                 interp1(x,y,xx)
+%                 keyboard
+%             end
+
+%             J2 = 2*J2(end)-J2(end-1);
+%             J1 = 2*J1(end)-J1(end-1);
+
+%             J2=mean(J2);
+%             J1=mean(J1);
+
              % possibility 1: n= n
             J3=J3*0;         
             % possibility 2: -> n= -n
@@ -1663,15 +1747,21 @@ classdef sph_particles < handle
             end
             
             % dissipative mass flux
-
             obj.bc(iboun).drhoj_diss = sum((obj.vj(kbb,:)-vjb) .* (n_len*n),2)./omega;
+            obj.bc(iboun).drhoj_diss = obj.bc(iboun).drhoj_diss;
+            
             obj.drhoj(kbb) = obj.drhoj(kbb) - obj.bc(iboun).drhoj_diss;
-
+            
             % dissipative force
             obj.bc(iboun).dvj_diss = -(((obj.pj(kbb)./obj.rhoj(kbb).^2 + pjb./rhojb.^2./omega)...
                 *ones(1,obj.dim))...
                 .*(n_len*n));
+            obj.bc(iboun).dvj_diss = obj.bc(iboun).dvj_diss;
+            
+            
             obj.Fj_tot(kbb,:) = obj.Fj_tot(kbb,:) - obj.bc(iboun).dvj_diss .* (obj.mj(kbb)*ones(1,obj.dim));
+            
+
             
             % dissipative energy
             obj.bc(iboun).dej_diss = obj.pj(kbb)./obj.rhoj(kbb).^2 .* obj.bc(iboun).drhoj_diss;
@@ -1699,9 +1789,11 @@ classdef sph_particles < handle
             
             if obj.firststep %search for the boundary particles
 
-                dx = mean(obj.Vj)^(1/obj.dim);
-                obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< dx;
-                
+                dx = mean(obj.Vj)^(1/obj.dim);                
+%                 obj.bc(iboun).kb = obj.point_to_line(obj.Xj(obj.Iin,:),obj.bc(iboun).p1,obj.bc(iboun).p2)< dx;
+                n =  obj.bc(iboun).outer_normal;
+                obj.bc(iboun).kb = abs(sum((obj.Xj- (ones(obj.N,1)*bp)) .* (ones(obj.N,1)*n),2)) < dx;
+
                 % temp
                obj.bc(iboun).rho_ref = obj.rhoj(obj.bc(iboun).kb);
                obj.bc(iboun).p_ref   = obj.pj(obj.bc(iboun).kb);
@@ -1921,11 +2013,16 @@ classdef sph_particles < handle
 
             j_to_look_at = obj.Iin; %all particles
             pXj = obj.Xj(j_to_look_at,:);
-            if obj.dim == 1
-                 d = abs(pXj-boun.p1);
-            else
-                 d = obj.point_to_line(pXj,boun.p1,boun.p2);
-            end
+            
+            
+            NN=size(pXj,1);
+            bp=boun.bp;
+            d = abs(sum((pXj- (ones(NN,1)*bp)) .* (ones(NN,1)*outer_normal),2));
+%             if obj.dim == 1
+%                  d = abs(pXj-boun.p1);
+%             else
+%                  d = obj.point_to_line(pXj,boun.p1,boun.p2);
+%             end
             Imirror_local = d <  obj.kernel_cutoff * max(obj.hj(obj.Iin));% * 12;
             Imirror       = obj.Iin(Imirror_local);                
             

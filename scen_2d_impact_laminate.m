@@ -5,32 +5,32 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 20000;
+ps.Ntot    = 4000;
 ps.equalmass = false;
 
-ps.dtfactor = 0.5;
-ps.dt       = 1e-8;
+ps.dtfactor = 0.01;
+% ps.dt       = 2e-10;
 ps.tend     = 2e-4;   
 % ps.tpause   = 0;
-ps.eta      = 1.2;     
+ps.eta      = 1.4;     
 ps.set_kernel('M4');
 ps.EOS     = 'MG';
 ps.scheme   = 'm';
-ps.compOmegaj  = false;
+ps.compOmegaj  = true;
 ps.h_const  = false;
 
 % IO
-ps.plot_dt = 1e-6;   
+ps.plot_dt = 2e-7;   
 ps.save_as_movie = true;
-ps.movie_name = 'impact_laminate';
-ps.plot_quantity = 'x';%vpd';
+ps.movie_name = 'impact_laminateV2';
+ps.plot_quantity = 'xp';%vpd';
 ps.plot_style.p = 'patches';
 ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
 %output
-ps.save_dt = 1e-6;
-ps.write_data = false;
-ps.output_name ='data/impactLayer_bc';
+ps.save_dt = 2e-7;
+ps.write_data = true;
+ps.output_name ='data/impact_laminateV2';
 
 %% material parameter
 
@@ -73,7 +73,7 @@ end
 p1 = [0,omega_geo(2,1)]; %bottom
 p2 = [1,omega_geo(2,1)];
 outer_normal = [0,-1];
-ps.add_bc('nrc',p1,p2,outer_normal);
+% ps.add_bc('nrc',p1,p2,outer_normal);
 p1 = [0,omega_geo(2,2)]; % top
 p2 = [1,omega_geo(2,2)];
 outer_normal = [0,1];
@@ -87,7 +87,7 @@ c0 = 5330;
 e0 = 0;
 MG_Gamma = 2;
 MG_S     = 1.338;
-v0 = [4500,0];
+v0 = [1.2*c0,0];
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 
 

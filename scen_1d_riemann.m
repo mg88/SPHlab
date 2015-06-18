@@ -1,17 +1,17 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % 1d riemann problem
-set(0,'DefaultFigureWindowStyle','docked') %'normal'
+% set(0,'DefaultFigureWindowStyle','docked') %'normal'
 close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot      = 300;
+ps.Ntot      = 200;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
-%   ps.dtfactor  = 0.01;
-ps.tend      = 2.5; 
+ps.dtfactor  = 0.1;
+ps.tend      = 2; 
 % ps.tpause   = 1e-2;%0.9:0.02:2;%1.0:0.2:3;
-ps.eta     = 1.2;     
+ps.eta     = 1.7;     
 ps.set_kernel('M4');
 
 ps.scheme  = 'm';
@@ -60,7 +60,7 @@ ps.Omega = [-2.7, 2.7];
 
 %% active particles
 xl=-1.5;
-xm=0.3;
+xm=1.1;
 xr=1.5;
 %left
 % omega_geo = [xl,-xm]; %x
@@ -79,7 +79,7 @@ omega_geo = [xm,xr]; %x
 v0   = 0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %% set BC
-ps.add_bc('nrc',xr,0,1);
+ps.add_bc('nrc',xr,1);
 
 % right %bigger particles:
 % omega_geo = [0.6,0.7];

@@ -28,7 +28,7 @@ ps.output_name ='data/riemann2d_boun';
  %% material parameter
 rho0 = 1;   
 c0   = 1;
-ps.EOS     = 'MG';
+ps.EOS     = 'ISO';
 
 %ps.art_diss_para.alpha_mass = 0;
 %ps.art_diss_para.alpha_energy = 0;
@@ -50,7 +50,7 @@ h2 = 0.1;
 %left
 omega_geo = [l,interface; %x
              h1,h2]; %y
-v0    = [0.8,0];
+v0    = [0.2,0];
 ps.add_geometry(omega_geo, rho0, v0, c0)
              
 % right
@@ -62,21 +62,18 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0)
    
 %% set BC
 %no-reflecting bc right
-p1 = [r,0];
-p2 = [r,1];
+bp = [r,0];
 outer_normal = [1,0];
-ps.add_bc('nrc',p1,p2,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 
 %no-flow on bottom
-p1 =  [0,h1];
-p2 =  [1,h1];
+bp =  [0,h1];
 outer_normal = [0,-1];
-ps.add_bc('noflow',p1,p2,outer_normal);
+ps.add_bc('noflow',bp,outer_normal);
 %no-flow on top
-p1 =  [0,h2];
-p2 =  [1,h2];
+bp =  [0,h2];
 outer_normal = [0,1];
-ps.add_bc('noflow',p1,p2,outer_normal);
+ps.add_bc('noflow',bp,outer_normal);
 
 %% -----------------------------------------------------
 % generate particles

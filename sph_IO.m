@@ -513,19 +513,19 @@ classdef sph_IO < handle
         end        
         %% %%%  Plotting functions %%% %%        
         function p=plot_trisurf(~,x,y,z,max_r)  
-            %seperate because it is also needed as an extra routine for a
-            %comparison analysis
-            xy   = complex(x,y);
-            tri    = delaunay(x,y);
-            e    = abs(xy(tri) - xy(circshift(tri,-1,2)));
+            %seperate because it is needed as an extra routine for a
+            %comparison analysis, too.
+            xy    = complex(x,y);
+            tri   = delaunay(x,y);
+            e     = abs(xy(tri) - xy(circshift(tri,-1,2)));
             goodt = all(e < max_r,2); %dxmedian(e(:)),2);
-            t2   = tri(goodt,:);
-            p=trisurf(t2,x,y,z);
+            t2    = tri(goodt,:);
+            p     = trisurf(t2,x,y,z);            
             %trimesh(t2,x,y,z)
         end  
 
         %%
-        function plot_data(obj,obj_p,A_quantities)
+        function plot_data(obj,obj_p,A_quantities,flag_drawnow)
             %% some functions
             function p=plot_scatter(x,dat,mat)
                colo='gbkrmcy';
@@ -651,7 +651,7 @@ classdef sph_IO < handle
                    if ~isfield(boun,'kb') %handling older data sets (just do not plot that)
                        continue
                    end
-                   p1=boun.p1;
+                   bp=boun.bp;
                    normal =boun.outer_normal;
                    kbb=find(boun.kb);
                    X=obj_p.Xj(kbb,:);
@@ -699,7 +699,7 @@ classdef sph_IO < handle
                        if datmax == 0
                            continue
                        end
-                       y0= p1(ky)+normal(ky)*1.5*len;                         
+                       y0= bp(ky)+normal(ky)*1.5*len;                         
                        %plot reference box
                        if kx==1 %to the top/bottom
                            rectangle('Position',[xleft,y0-len,xright-xleft,2*len],'LineStyle',':')
@@ -728,6 +728,9 @@ classdef sph_IO < handle
             %% start of routine
           if nargin < 3 %use prescribed quantities to plot if not given
                A_quantities = obj.plot_quantity;
+          end
+           if nargin < 4
+               flag_drawnow = true;
            end
             
            if ~isempty(obj.mfigure)
@@ -758,7 +761,8 @@ classdef sph_IO < handle
                end
                cla %clear axis
                hold on;
-               axis auto
+               axis normal
+               
                if quantity == 'x'
                    dat_name = '';
                    name = 'position';
@@ -853,7 +857,8 @@ classdef sph_IO < handle
                             axis equal
                       elseif strcmp (style,'ringcloud')         
                             plot_ringcloud(x(:,1),x(:,2),mat);
-                            view([-0.3,-1,1]);                                
+                            view([-0.3,-1,1]);   
+%                             daspect([1,1,1])
                             axis equal
                       elseif strcmp (style,'torus')         
                             sizeOfCirlce = obj_p.hj;
@@ -865,20 +870,24 @@ classdef sph_IO < handle
                             axis equal 
                       else %default
                           plot_scatter(x(:,1),x(:,2),mat); 
-                          axis equal
                       end
                    elseif any(quantity == 'pdem') %perssure, density, energy, massflux -> scalar
-                        if strcmp (style,'trisurf')
+                        if strcmp (style(1:5),'trisu')
                             plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
-                            view([1,0.5,0.3]);
-                            %view(2)
-                            shading interp
-                            if ~isempty(limaxes)
-                                 zlim(limaxes)
+                            if length(style)>7 %make it from a perspective, e.g. 'trisurf3'
+                                view([1,0.5,0.3]);
+                            else     
+                                view(2)
+                                daspect([1,1,1])
                             end
+                            
+                            shading interp
+%                             if ~isempty(limaxes)
+%                                  zlim(limaxes)
+%                             end
                             colorbar 
                             colormap jet                      
                         elseif strcmp (style,'patches')                            	
@@ -890,7 +899,7 @@ classdef sph_IO < handle
                             end
                             colorbar 
                             colormap jet
-                            axis equal
+                            daspect([1,1,1])
                         elseif strcmp (style,'plot3')
                             plot3(x(:,1),x(:,2),obj_p.(dat_name),'o');
                             if ~isempty(limaxes)
@@ -903,7 +912,7 @@ classdef sph_IO < handle
                         end                                                
                    elseif any(quantity == 'vf') % velocity, forces -> field
                            dat_max = plot_field(x(obj_p.Iin,:),obj_p.(dat_name)(obj_p.Iin,:));
-                           axis equal
+                           daspect([1,1,1])
                            title_additive= [title_additive,'; max|',quantity,'|=',num2str(dat_max)];
                    else
                        error([obj.plotstyle, '- plotstyle is not supported']);
@@ -923,7 +932,9 @@ classdef sph_IO < handle
                iplot = iplot+1;
                hold off;
            end
-           drawnow
+           if flag_drawnow
+               drawnow
+           end
         end          
         %%
         function draw_geometry(~,obj_p,dat_name)
@@ -945,45 +956,40 @@ classdef sph_IO < handle
                    end
                    
                    if strcmp(boun.type,'noflow')
-                        plot([boun.p1,boun.p1],a(3:4),'kx:');
+                        plot([boun.bp,boun.bp],a(3:4),'kx:');
                    elseif strcmp (boun.type(1:2),'nr') && obj_p.dim==1
                         plot([obj_p.Xj(boun.kb),obj_p.Xj(boun.kb)],a(3:4),'bx:');
                    else
                        error('No such boundary type to plot');
-                   end
-                       
-                   
+                   end                                         
                    axis(a);
                end
                 
            elseif obj_p.dim == 2
-               
-               %axis('equal')   
-              a = axis;
+               a = axis;
                %Omega:
-%                rectangle('Position',[obj_p.Omega(1,1),obj_p.Omega(2,1),...
-%                    obj_p.Omega(1,2)-obj_p.Omega(1,1),obj_p.Omega(2,2)-obj_p.Omega(2,1)]); %boundary
                x1 = [obj_p.Omega(1,1), obj_p.Omega(2,1)];
                x2 = [obj_p.Omega(1,2), obj_p.Omega(2,1)];
                x3 = [obj_p.Omega(1,2), obj_p.Omega(2,2)];
                x4 = [obj_p.Omega(1,1), obj_p.Omega(2,2)];
                if size(a,2)>4 && ~isempty(dat_name)%->3d
 %                     z =a(5);
-                    z = mean(obj_p.(dat_name));
+                   z = mean(obj_p.(dat_name));
                else
                    z=0;
                end
+               
                plot3( [x1(1) x2(1) x3(1) x4(1) x1(1)], [x1(2) x2(2) x3(2) x4(2) x1(2)], [z z z z z] )
-               hold on
+               
+               %boundary lines:
+               a = axis; %now with Omega in consideration
                for boun = obj_p.bc
-                   a = axis;
-                   e = [boun.p2(1)-boun.p1(1),boun.p2(2)-boun.p1(2)];
-                   e = e/norm(e);
-                   p1= boun.p1 +1000*e; %from "minus infinity to infinity"
-                   p2= boun.p2 -1000*e;
+                   e = [0 -1; 1 0]*boun.outer_normal'; %rotate 90degrees
+                   p1= boun.bp +1000*e'; %from "minus infinity to infinity"
+                   p2= boun.bp -1000*e';
                    plot3([p1(1),p2(1)],[p1(2),p2(2)],[z,z],'kx:');
-                   axis(a);
                end
+               axis(a);
                %% draw connectivity
                if draw_connectivity               
                    colo='gbkrmcy';
