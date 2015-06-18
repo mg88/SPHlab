@@ -49,27 +49,23 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
              
 %% set BC
 %no-reflecting bc right
-p1 = [r,0];
-p2 = [r,1];
+bp = [r,0];
 outer_normal =[1,0];
-ps.add_bc('nrc',p1,p2,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 %no-reflecting bc left
-p1 = [l,0];
-p2 = [l,1]; 
+bp = [l,0];
 outer_normal =[-1,0];
-ps.add_bc('nrc',p1,p2,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 
 %no-reflecting bc bottom
-p1 =  [0,h1];
-p2 =  [1,h1];
+bp =  [0,h1];
 outer_normal =[0,-1];
-ps.add_bc('nrc',p1,p2,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 
 %no-reflecting bc top
-p1 =  [0,h2];
-p2 =  [1,h2];
+bp =  [0,h2];
 outer_normal =[0,1];
-ps.add_bc('nrc',p1,p2,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 
 
 %% -----------------------------------------------------

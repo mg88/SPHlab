@@ -109,8 +109,8 @@ pR = (Gamma-1)*eR*rhoR;
 ps.exact_sol = exact_rarefactionShock(rhoL,pL,vL,rhoR,pR,vR,Gamma,x0);
 
 %% BC:
-ps.add_bc('noflow',xl,0,-1); %left
-ps.add_bc('noflow',xr,0,1); %right
+ps.add_bc('noflow',xl,-1); %left
+ps.add_bc('noflow',xr,1); %right
 
 %% -----------------------------------------------------
 % generate particles

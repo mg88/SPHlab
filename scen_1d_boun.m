@@ -30,11 +30,11 @@ ps.add_geometry(omega_geo, rho0, v0, c0)
 %% BC:
 p1 = 0.05;
 n = -1;
-ps.add_bc_noflow(p1,0,n);
+ps.add_bc('noflow',p1,n);
 
 p1  = 0.95;
 n=1;
-ps.add_bc_noflow(p1,0,n);
+ps.add_bc('noflow',p1,n);
 
 %% -----------------------------------------------------
 % generate particles

@@ -70,14 +70,12 @@ end
 
 
  % set BC
-p1 = [0,omega_geo(2,1)]; %bottom
-p2 = [1,omega_geo(2,1)];
+bp = [0,omega_geo(2,1)]; %bottom
 outer_normal = [0,-1];
-% ps.add_bc('nrc',p1,p2,outer_normal);
-p1 = [0,omega_geo(2,2)]; % top
-p2 = [1,omega_geo(2,2)];
+% ps.add_bc('nrc',bp,outer_normal);
+bp = [0,omega_geo(2,2)]; % top
 outer_normal = [0,1];
-ps.add_bc('nrc',p1,p2,outer_normal); 
+ps.add_bc('nrc',bp,outer_normal); 
 
 %% protectile %alu series 2024
 omega_geo = [-5e-3-2e-3, -2e-3;
@@ -96,10 +94,9 @@ ps.Ntot=ps.Ntot/2;
 for i = 1:(ps.iter_geo-1)
     ps.geo(i).omega_geo(2,1) = 0;
 end
-p1 = [0,0];
-p2 = [1,0];
+bp = [0,0];
 outer_normal = [0,-1];
-ps.add_bc('noflow',p1,p2,outer_normal);
+ps.add_bc('noflow',bp,outer_normal);
 ps.Omega(2,1)= -0.02;
 
 %% -----------------------------------------------------

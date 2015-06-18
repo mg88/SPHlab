@@ -1109,6 +1109,12 @@ classdef sph_IO < handle
             obj_data.ej = readVariable('e',filename,group);
             % some extra information (only available from a simulation
             % output - and not necessary to create a scenario)
+            
+            %Mie-Gruneisen parameter
+            if isprop(obj_data,'Gamma')
+                obj_data.MG_Gammaj = readVariable('Gamma',filename,group);
+                obj_data.MG_Sj = readVariable('S',filename,group);
+            end
             if isprop(obj_data,'hj')
                 % smoothing length
                 obj_data.hj = readVariable('h',filename,group);
@@ -1132,9 +1138,7 @@ classdef sph_IO < handle
                 obj_data.Imaterial_with_boun = [obj_data.Imaterial;
                                            max(max(obj_data.Imaterial)),N];
             end
-          %  Gamma = readVariable('Gamma',filename,time_str);
           %  Gmod = readVariable('Gmod',filename,time_str);
-          %  S = readVariable('S',filename,time_str);
           %  Y0 = readVariable('Y0',filename,time_str);
           %  p = readVariable('p',filename,time_str);
           %  phi = readVariable('phi',filename,time_str);
@@ -1161,7 +1165,9 @@ classdef sph_IO < handle
             writeVariable(filename,time,'m',obj_p.mj);                        
             writeVariable(filename,time,'h',obj_p.hj);                        
             writeVariable(filename,time,'p',obj_p.pj);                        
-
+            writeVariable(filename,time,'Gamma',obj_p.MG_Gammaj);                        
+            writeVariable(filename,time,'S',obj_p.MG_Sj);  
+            
             if obj_p.dim == 2
                 writeVariable(filename,time,'y',obj_p.Xj(:,2));
                 writeVariable(filename,time,'v',obj_p.vj(:,2));                
