@@ -18,9 +18,12 @@ classdef sph_IO < handle
         plot_style
         plot_quantity
         plot_dt
-        
+        drawfluxes
         fixaxes
-        
+        %
+        latexplot
+        Sfont
+        Sint
         %movie
         save_as_movie
         movie_name
@@ -58,7 +61,8 @@ classdef sph_IO < handle
               obj.plot_style    = obj_scen.plot_style;
               obj.plot_quantity = obj_scen.plot_quantity;                                          
               obj.exact_sol     = obj_scen.exact_sol;                                          
-
+              obj.latexplot     = obj_scen.latexplot;                                          
+              obj.drawfluxes    = obj_scen.drawfluxes;
               %% gridpoints to evaluate
               if obj_scen.Neval > 0
                   [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,obj_scen.Neval);
@@ -132,7 +136,15 @@ classdef sph_IO < handle
             end   
             
             %% output
-            
+           
+            %for latex plots:
+            %----------------
+           FontSize=15;
+           obj.Sfont= struct('FontUnits','points',...
+            'FontSize',FontSize,...
+            'FontName','Times');
+           obj.Sint = struct('interpreter','latex');
+            %------------------
         end
         %%
         function do (obj, obj_particles,force)
@@ -520,24 +532,24 @@ classdef sph_IO < handle
             e     = abs(xy(tri) - xy(circshift(tri,-1,2)));
             goodt = all(e < max_r,2); %dxmedian(e(:)),2);
             t2    = tri(goodt,:);
-            p     = trisurf(t2,x,y,z);            
+            p     = trisurf(t2,x,y,z,'EdgeColor','none');            
             %trimesh(t2,x,y,z)
         end  
 
         %%
-        function plot_data(obj,obj_p,A_quantities,flag_drawnow)
+        function plot_data(obj,obj_p,A_quantities,flag_drawnow,flag_cla)
             %% some functions
-            function p=plot_scatter(x,dat,mat)
+            function p=plot_scatter(x,dat,mat,marker)
                colo='gbkrmcy';
                %each material gets his own color
                
                for m = 1:size(mat,1)
                     I = mat(m,1):mat( m,2);
-                    p(m)=plot(x(I),dat(I),'o','color',colo(mod(m,length(colo))+1),'MarkerFaceColor','auto'); 
+                    p(m)=plot(x(I),dat(I),marker,'color',colo(mod(m,length(colo))+1),'MarkerFaceColor','auto'); 
                end                     
             end    
              
-            function p=plot_force(data)
+            function p = plot_force(data)
                 I=data.Icomp;
                 F_all = [data.Fj_tot(I), data.Fj_int(I), data.Fj_diss(I)];
                 F_leg = ['F_{tot}    ';'F_{int}    ';'F_{diss}   '];
@@ -550,16 +562,16 @@ classdef sph_IO < handle
                     F_leg = [F_leg; 'F_{ST}     '];
                 end
 
-                p=bar(data.Xj(I),F_all);
-                title('forces')
+                p = bar(data.Xj(I),F_all);
+                title('forces');
                 xlim([data.Omega(1) data.Omega(2)]);
                 legend(F_leg);
             end
             
-            function p=plot_massflux(data)
+            function p = plot_massflux(data)
                 I=data.Icomp;
                 p=bar(data.Xj(I),...
-                    [data.drhoj(I),data.drhoj_diss(I)]);
+                    [data.drhoj_tot(I),data.drhoj_diss(I)]);
                 title('massflux')
                 xlim([data.Omega(1) data.Omega(2)]);
                 legend('drho','drho_{diss}');
@@ -651,15 +663,15 @@ classdef sph_IO < handle
                    if ~isfield(boun,'kb') %handling older data sets (just do not plot that)
                        continue
                    end
-                   bp=boun.bp;
-                   normal =boun.outer_normal;
-                   kbb=find(boun.kb);
-                   X=obj_p.Xj(kbb,:);
-                   NN=size(X,1);               
-                   dx = dx_factor *mean(obj_p.Vj(kbb).^(1/obj_p.dim));
+                   bp     = boun.bp;
+                   normal = boun.outer_normal;
+                   kbb    = find(boun.kb);
+                   X      = obj_p.Xj(kbb,:);
+                   NN     = size(X,1);               
+                   dx     = dx_factor *mean(obj_p.Vj(kbb).^(1/obj_p.dim));
                    if obj_p.dim==1
-                       ax=axis;
-                       y0=0.5*(ax(4)+ax(3));
+                       ax = axis;
+                       y0 = 0.5*(ax(4)+ax(3));
                        dat = sum(boun.(['d',datname,'_diss']));%/5e8;                                            
                          
                      %plotting:                  
@@ -729,8 +741,12 @@ classdef sph_IO < handle
           if nargin < 3 %use prescribed quantities to plot if not given
                A_quantities = obj.plot_quantity;
           end
+           %default: dont wait for drawing the figure and clear axes
            if nargin < 4
                flag_drawnow = true;
+           end           
+           if nargin < 5
+               flag_cla = true;
            end
             
            if ~isempty(obj.mfigure)
@@ -759,43 +775,53 @@ classdef sph_IO < handle
                if nplot > 1
                   subplot(nyplot,nxplot,iplot);
                end
-               cla %clear axis
+               if flag_cla
+                  cla %clear axis
+               end
+               
                hold on;
                axis normal
                
                if quantity == 'x'
                    dat_name = '';
                    name = 'position';
+                   axisname = '';
                    limaxes = obj.fixaxes.x;
                    style   = obj.plot_style.x;
                elseif quantity == 'p'
                    dat_name = 'pj';
                    name = 'pressure';
+                   axisname = '$p$';
                    limaxes = obj.fixaxes.p;
                    style   = obj.plot_style.p;
                elseif quantity == 'd'
                    name = 'density';
                    dat_name = 'rhoj';
+                   axisname = '$\rho$';
                    limaxes = obj.fixaxes.d;                   
                    style   = obj.plot_style.d;
               elseif quantity == 'm'
                    name = 'massflux';
                    dat_name = 'drhoj';
+                   axisname = '$\dot{\rho}$';
                    limaxes = obj.fixaxes.m;                   
                    style   = obj.plot_style.m;
                elseif quantity == 'v'
                    name = 'velocity';
                    dat_name = 'vj';
+                   axisname = '$v$';
                    limaxes = obj.fixaxes.v;
                    style   = obj.plot_style.v;
                elseif quantity == 'f'
                    name = 'F-total'; %todo plot components
                    dat_name = 'Fj_tot';
+                   axisname = '$F$';
                    limaxes = obj.fixaxes.f;
                    style   = obj.plot_style.f;
                elseif quantity == 'e'
                    name = 'energy';
                    dat_name = 'ej';
+                   axisname = '$u$';
                    limaxes = obj.fixaxes.e;
                    style   = obj.plot_style.e;
                else
@@ -812,8 +838,9 @@ classdef sph_IO < handle
                        plot_massflux(obj_p);
                    else                            
                        % plot particles
-                       p = plot_scatter(x,obj_p.(dat_name),mat);                        
-                       pp   =p(1); % array of plot handles                       
+                       marker = '.';
+                       p = plot_scatter(x,obj_p.(dat_name),mat,marker);                        
+                       pp = p(1); % array of plot handles                       
                        names={'SPH-data'}; % array of strings for legend
                        
                        % plot smoothed values
@@ -838,18 +865,30 @@ classdef sph_IO < handle
                        if ~isempty(obj_p.IOdata.([dat_name,'ghost']))
                             plot(x(obj_p.Ighost),obj_p.IOdata.([dat_name,'ghost']),'kx');                       
                        end
-                       legend(pp, names);
+                       h=legend(pp, names);
+                       set(h,obj.Sfont,obj.Sint);
 
                        %mark mirror particle
 %                        if ~isempty(obj_particles.bc)
 %                             plot(obj_particles.Xj(obj_particles.bc.mirrorParticlesj),dat(obj_particles.bc.mirrorParticlesj),'xr');
 %                        end
-                       
                    end
                    if ~isempty(limaxes)
                      ylim(limaxes);
-                   end                   
+                   else
+                       ylim([-inf,inf]);
+                   end  
+                   
+                   h=xlabel('$x$');
+                   set(h,obj.Sfont,obj.Sint);
+                   h=ylabel(axisname);
+                   set(h,obj.Sfont,obj.Sint);
+
+                   % axis
+                   set(gca,obj.Sfont);
+                   
                elseif obj_p.dim == 2
+                   addcolorbar = false;
                    if quantity == 'x'
                       if strcmp (style,'ring')         
                             plot_ring(x(:,1),x(:,2));
@@ -869,7 +908,12 @@ classdef sph_IO < handle
                             view([-0.3,-1,1]);                                
                             axis equal 
                       else %default
-                          plot_scatter(x(:,1),x(:,2),mat); 
+                          if flag_cla %default marker                              
+                              marker = '.';
+                          else        %alternative marker (in order to compare two solutions)
+                              marker ='o';
+                          end
+                          plot_scatter(x(:,1),x(:,2),mat,marker); 
                       end
                    elseif any(quantity == 'pdem') %perssure, density, energy, massflux -> scalar
                         if strcmp (style(1:5),'trisu')
@@ -888,8 +932,8 @@ classdef sph_IO < handle
 %                             if ~isempty(limaxes)
 %                                  zlim(limaxes)
 %                             end
-                            colorbar 
-                            colormap jet                      
+                            addcolorbar = true;
+                    
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
@@ -897,8 +941,7 @@ classdef sph_IO < handle
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
-                            colorbar 
-                            colormap jet
+                            addcolorbar = true;
                             daspect([1,1,1])
                         elseif strcmp (style,'plot3')
                             plot3(x(:,1),x(:,2),obj_p.(dat_name),'o');
@@ -918,14 +961,27 @@ classdef sph_IO < handle
                        error([obj.plotstyle, '- plotstyle is not supported']);
                    end    
                    
+                   if addcolorbar
+                        h=colorbar;                           
+                        h=ylabel(h, axisname); 
+                        set(h,obj.Sfont,obj.Sint);
+                        colormap jet        
+                   end
+                    h=xlabel('$x_1$');
+                    set(h,obj.Sfont,obj.Sint);
+                    h=ylabel('$x_2$');
+                    set(h,obj.Sfont,obj.Sint);
+                   % axis
+                   set(gca,obj.Sfont);
 
                end 
               % plot leaving fluxes on the boundary:
-               if any(quantity == 'vd')
+               if (any(quantity == 'vd') && obj.drawfluxes)
                    add_fluxes(obj_p,dat_name);
                end
-               
-               title([name,title_additive]);
+               if ~obj.latexplot
+                  title([name,title_additive]);
+               end
                title_additive='';
                %% plot additional info
                draw_geometry(obj,obj_p,dat_name);
@@ -942,6 +998,10 @@ classdef sph_IO < handle
            draw_cells = false;
            draw_connectivity = false;                %only 2d
 
+           if nargin<3
+               dat_name='';
+           end
+           
            if obj_p.dim == 1
                % Omega
                xlim( [obj_p.Omega(1), obj_p.Omega(2)]);

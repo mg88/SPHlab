@@ -68,12 +68,14 @@ classdef sph_scenario < handle
         output_name        
        
         % some plotting properties
+        latexplot
         plot_dt         % plotting timestep
         plot_style       % 1D - scatter  
                          % 2D - scalar: trisurf | patches; field: quiver
         plot_quantity    %which quantity shall be plottet: eg 'xe' for position and energy
          % v-velocity, x-position, p-pressure, d-density, f-forces, m-massflux, e-energy
         fixaxes         %struct to define the axes    
+        drawfluxes      % for v and rho
         %%        
         Neval           % amount of evaluation points 
         Nss             % amount of supersampling points (in each direction)
@@ -115,6 +117,7 @@ classdef sph_scenario < handle
            obj.g_ext = []; 
 
            %IO
+           obj.latexplot = false;
            obj.plot_dt = inf;
            obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
@@ -124,6 +127,7 @@ classdef sph_scenario < handle
                                    'v','quiver',...
                                    'f','quiver',...
                                    'e','trisurf');
+           obj.drawfluxes = true;
            obj.Neval = 0;
            obj.Nss   = 1; %(no supersampling)
            
@@ -265,7 +269,7 @@ classdef sph_scenario < handle
                 if dim == 1
                     [x,Vparticle] = add_line(obj,obj.geo(i).omega_geo, obj.geo(i).N);                    
                 elseif dim == 2
-                    [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N);                                        
+                    [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N);
                 else
                     error('only dim=1,2 are supported');
                 end

@@ -16,17 +16,17 @@ ps.scheme   = 'm';
 ps.h_const  = false;
 ps.compOmegaj=true;
 %IO
-ps.plot_dt = 4e-2;  
+ps.plot_dt = 1e-2;  
 ps.save_as_movie = false;
 ps.plot_quantity = 'dvpe';
 ps.fixaxes.e = [0.7,3];
-ps.Neval = ps.Ntot ;
+%ps.Neval = ps.Ntot ;
 % ps.Nss = 4;
 
  %% material parameter
 
 %% domain         
-ps.Omega = [-0.5, 1.5]; 
+ps.Omega = [-0.9, 1.9]; 
 
 %% active particles
 
@@ -65,11 +65,11 @@ ps.dt = 1e-4;
 ps.EOS     = 'IdealGas14';
 Gamma= 1.4;
 
-ps.art_diss_para.alpha_mass = 0.3;
+ps.art_diss_para.alpha_mass = 0.3;%0.3;
 ps.art_diss_para.beta_mass = 0;
 ps.art_diss_para.alpha_viscosity = 1;
-ps.art_diss_para.beta_viscosity = 0;
-ps.art_diss_para.alpha_energy = 0.5;
+ps.art_diss_para.beta_viscosity = 0.5;
+ps.art_diss_para.alpha_energy = 0.5;%0.5;
 ps.art_diss_para.beta_energy = 0;
 
 

@@ -8,8 +8,8 @@ ps = sph_scenario();
 ps.Ntot      = 200;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
-ps.dtfactor  = 0.1;
-ps.tend      = 2; 
+% ps.dtfactor  = 0.1;
+ps.tend      = 7; 
 % ps.tpause   = 1e-2;%0.9:0.02:2;%1.0:0.2:3;
 ps.eta     = 1.7;     
 ps.set_kernel('M4');
@@ -33,11 +33,12 @@ ps.movie_name = 'out2';
 ps.plot_quantity = 'vp';  %p
 ps.fixaxes.v = [-0.15, 0.85];
 % ps.fixaxes.p = [0.995, 1.005];
-ps.fixaxes.p = [-1e-0, 1e-0];
+% ps.fixaxes.p = [-1e-0, 1e-0];
 ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
 ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
-
+ps.latexplot = true;
+ps.drawfluxes = false;
 % ps.Neval = 300;
 %output
 ps.save_dt = 5e-2;
@@ -67,7 +68,7 @@ xr=1.5;
 % v0   = -0.00;
 % ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 % set BC
-% ps.add_bc('nrc',xl,0,-1);
+% ps.add_bc('nrc',max(xl,-xm),-1);
 
 %middle
 omega_geo = [-xm,xm]; %x
@@ -79,7 +80,7 @@ omega_geo = [xm,xr]; %x
 v0   = 0.00;
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %% set BC
-ps.add_bc('nrc',xr,1);
+ps.add_bc('nrc',xr,1.5);
 
 % right %bigger particles:
 % omega_geo = [0.6,0.7];

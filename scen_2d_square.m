@@ -7,17 +7,17 @@ ps = sph_scenario();
 %% general parameter
 ps.Ntot    = 500;
 ps.dtfactor= 0.4;
-
+% ps.tpause  = 0;%(1:10)*2e-5;
 ps.tend    = 2e-4;    
 ps.eta     = 1.2;     
 
 %IO
 ps.plot_dt = 1e-6;   
-ps.save_as_movie = true;
+ps.save_as_movie = false;
 ps.movie_name = 'test_nrbc_square';
 
-ps.plot_quantity = 'vpde';
-ps.plot_style.p = 'patches';
+ps.plot_quantity = 'vdp';
+ps.plot_style.p = 'trisurf';
 ps.plot_style.d = 'trisurf';
 ps.plot_style.e = 'trisurfp';
 
@@ -34,14 +34,14 @@ MG_S     = 1.338;
 ps.EOS     = 'ISO';
 
 %% domain
-ps.Omega = [-0.1,0.6;
-            -0.1,1.1]; 
+ps.Omega = [-0.3,0.3;
+            -0.6,0.6]; 
 % 
 
-l= 0.1;
-r= 0.4;
-h1= 0.4;
-h2= 0.9;
+l= -0.15;
+r= 0.15;
+h1= -0.4;
+h2= 0.4;
 omega_geo = [l,r;
              h1,h2];        
 v0 = [0,0];
@@ -78,12 +78,12 @@ ps.create_geometry;
 % ps.rhoj(floor(N/2)) = ps.rhoj(floor(N/2))*3;  % peak in the center
 
 %set rho0
-x1 = 0.2;
-x2 = 0.25;
-y1 = 0.6;
-y2 = 0.65;
+x1 = -0.02;
+x2 = 0.02;
+y1 = -0.02;
+y2 = 0.02;
 k=(ps.Xj(:,1) > x1).*(ps.Xj(:,1) < x2) .* (ps.Xj(:,2)>y1) .*(ps.Xj(:,2)<y2);
-ps.rhoj(logical(k)) = ps.rhoj(logical(k))*1.7;  % peak in the center
+ps.rhoj(logical(k)) = ps.rhoj(logical(k))*1.2;  % peak in the center
 
 
 
