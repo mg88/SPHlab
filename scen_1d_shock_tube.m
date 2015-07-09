@@ -1,5 +1,5 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
-% 1d isothermal impact - paper of zisis2014
+% 1d shock tube problem - paper of zisis2014
 close all; clear;
 ps = sph_scenario();
 
@@ -12,21 +12,27 @@ ps.tend    = 0.25;
 ps.eta     = 1.2;     
 ps.set_kernel('Gauss');
 
-ps.scheme   = 'm';
-ps.h_const  = false;
-ps.compOmegaj=true;
+ps.scheme     = 'm';
+ps.h_const    = false;
+ps.compOmegaj = true;
+ps.normalizeOmega = false;
+
 %IO
 ps.plot_dt = 1e-2;  
 ps.save_as_movie = false;
 ps.plot_quantity = 'dvpe';
-ps.fixaxes.e = [0.7,3];
+ps.fixaxes.d = [0,1.2];
+ps.fixaxes.v = [-0.1,1.1];
+ps.fixaxes.p = [-0.1,1.1];
+ps.fixaxes.e = [1.5,3];
+ps.plotconfig.latexplot = true;
 %ps.Neval = ps.Ntot ;
 % ps.Nss = 4;
 
  %% material parameter
 
 %% domain         
-ps.Omega = [-0.9, 1.9]; 
+ps.Omega = [-0.2, 1.4]; 
 
 %% active particles
 
@@ -61,21 +67,21 @@ ps.Omega = [-0.9, 1.9];
 
 
 %% test2
-ps.dt = 1e-4;
-ps.EOS     = 'IdealGas14';
-Gamma= 1.4;
+ps.dt  = 1e-4;
+ps.EOS = 'IdealGas14';
+Gamma  = 1.4;
 
-ps.art_diss_para.alpha_mass = 0.3;%0.3;
-ps.art_diss_para.beta_mass = 0;
+ps.art_diss_para.alpha_mass      = 0.3;%0.3;
+ps.art_diss_para.beta_mass       = 0;
 ps.art_diss_para.alpha_viscosity = 1;
-ps.art_diss_para.beta_viscosity = 0.5;
-ps.art_diss_para.alpha_energy = 0.5;%0.5;
-ps.art_diss_para.beta_energy = 0;
+ps.art_diss_para.beta_viscosity  = 2;
+ps.art_diss_para.alpha_energy    = 0.3;%0.5;
+ps.art_diss_para.beta_energy     = 0;
 
 
-xl=0;
-x0=0.5;
-xr=1.2;
+xl = 0;
+x0 = 0.5;
+xr = 1.2;
 %1 (p=1)
 omega_geo = [xl,x0];
 vL   = 0;

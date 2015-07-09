@@ -16,6 +16,7 @@ classdef sph_scenario < handle
         scheme      % m | v
         EOS         % ISO (isothermal) | MG (Mie-Gruneisen) | Water | 
         h_const     % is h constant (true) or dependent on density (false) 
+        normalizeOmega % only m-scheme right now
         compOmegaj  % bool - compute correction factor Omega_j (comming from the rho dependency of h)
         %% geometry
         Ntot        % desired amount of particles
@@ -68,14 +69,15 @@ classdef sph_scenario < handle
         output_name        
        
         % some plotting properties
-        latexplot
+        
         plot_dt         % plotting timestep
         plot_style       % 1D - scatter  
                          % 2D - scalar: trisurf | patches; field: quiver
         plot_quantity    %which quantity shall be plottet: eg 'xe' for position and energy
          % v-velocity, x-position, p-pressure, d-density, f-forces, m-massflux, e-energy
-        fixaxes         %struct to define the axes    
-        drawfluxes      % for v and rho
+        fixaxes         %struct to define the axes
+        
+        plotconfig      % struct: see members below
         %%        
         Neval           % amount of evaluation points 
         Nss             % amount of supersampling points (in each direction)
@@ -98,6 +100,7 @@ classdef sph_scenario < handle
            obj.EOS    = 'ISO';
            obj.equalmass = false;
            obj.h_const   = false;
+           obj.normalizeOmega = false;
            obj.compOmegaj= false;
            obj.dt        = [];
            obj.dtfactor  = 0.5;
@@ -110,24 +113,30 @@ classdef sph_scenario < handle
                                       'alpha_viscosity',1,...
                                       'beta_viscosity',2,...
                                       'alpha_energy',1,...
-                                      'beta_energy',1);
+                                      'beta_energy',0);
            obj.geo = struct([]);
 
            obj.geo_noise = 0;
            obj.g_ext = []; 
 
            %IO
-           obj.latexplot = false;
            obj.plot_dt = inf;
            obj.plot_quantity = 'xp';
            obj.plot_style = struct('x','scatter',...              
-                                   'p','trisurf',...
-                                   'd','trisurf',...
-                                   'm','trisurf',...
+                                   'p','patches',...
+                                   'd','patches',...
+                                   'm','patches',...
                                    'v','quiver',...
                                    'f','quiver',...
-                                   'e','trisurf');
-           obj.drawfluxes = true;
+                                   'e','patches',...
+                                   'c','patches');
+           obj.plotconfig = struct();
+           obj.plotconfig.drawfluxes = true;            
+           obj.plotconfig.latexplot  = false;
+           obj.plotconfig.transpose  = false; %transpose the subplots
+           obj.plotconfig.figuresize = []; %empty: make default
+           obj.plotconfig.figurename = [];
+           
            obj.Neval = 0;
            obj.Nss   = 1; %(no supersampling)
            
@@ -135,7 +144,8 @@ classdef sph_scenario < handle
            obj.movie_name = 'out';
            obj.write_data = false; 
            obj.output_name ='data/data_out';
-           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'m',[],'f',[],'e',[]);
+           obj.fixaxes = struct('x',[],'v',[],'p',[],'d',[],'m',[],...
+                                'f',[],'e',[],'c',[]);
            obj.bc      = struct([]);
            obj.exp_settings = struct(...
                                      'tweakmass',false...  
@@ -264,7 +274,7 @@ classdef sph_scenario < handle
                 end
             end                        
             
-            for i = 1:size(obj.geo,2)
+            for i = 1:size(obj.geo,2)                
                 %create geometry
                 if dim == 1
                     [x,Vparticle] = add_line(obj,obj.geo(i).omega_geo, obj.geo(i).N);                    
@@ -314,13 +324,16 @@ classdef sph_scenario < handle
             end
         end
         %%
-        function add_bc(obj,type,bp,outer_normal) %type: nr-c,nr-m,nr-p,noflow
+        function add_bc(obj,type,bp,outer_normal,damping_area) %type: nr-c,nr-m,nr-p,noflow
+            if nargin < 5
+                damping_area=[];
+            end
             obj.bc(obj.iter_boun).type = type;
             obj.bc(obj.iter_boun).outer_normal = outer_normal./norm(outer_normal);
             obj.bc(obj.iter_boun).bp = bp; %boundary point 
 
-            obj.bc(obj.iter_boun).damping_area = [];
-            obj.iter_boun = obj.iter_boun +1;           
+            obj.bc(obj.iter_boun).damping_area = damping_area;
+            obj.iter_boun = obj.iter_boun + 1;           
         end
         
         %% % some geometry functions % %%

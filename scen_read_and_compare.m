@@ -4,8 +4,8 @@
 % close all; clear; clc;
 
 %input_name = 'data/impact';
-input_name1 = 'data/impactISO_org2';
-input_name2 = 'data/impactISO_bc2';
+input_name1 = 'data/impactMG_laminate2';
+input_name2 = 'data/impactMG_laminate2_nobc';
 
 % input_name1 = 'data/square3_org';
 % input_name2 = 'data/square3_bc';
@@ -13,7 +13,7 @@ input_name2 = 'data/impactISO_bc2';
 %compare only every di-step
 di = 1;
 Tstart = 0.e-4;%0.68e-4;
-Tend = 0.55e-4;
+Tend = 5.5e-5;
 compare_position   = 0;
 plot_solutions     = 0;
 plot_difference    = 0;
@@ -30,7 +30,7 @@ extra_magnify = false;
 x_magnify = [0.01,0.03];%abs(x(Aistar(1)));
 r_magnify = 0.005;
             
-% compare solution
+% compare solution (show side by side)
 plot_name  = 'p'; %what value shall I plot
 plot_style = 'trisurf';
 limaxes    = 1e8 *[-8,8];
@@ -40,9 +40,10 @@ var_name = 'pj'; %for evaluation
 Neval   = 2000;
 Nss = 1; %supersampling
 Omega_compare = [-10e-3,30e-3;     %x
-                 -60e-3,60e-3];%y 
+                 -100e-3,100e-3];%y 
              
-x_evolution = [0.01, 0.03];             
+% boundary evolution: evaluation point:
+x_evolution = [0.01, 0.07];             
     
 %% generate objects:
 ps1 = sph_scenario(input_name1);
@@ -250,7 +251,7 @@ for i=1:nI;
         l2err_evolution(i) = abs_error/Neval;
     end
     
-    if boundary_evolution
+    if boundary_evolution        
         dat1_evolution(i,:) = obj_particles1.IO.eval (obj_particles1, var_name,x_evolution);
         dat2_evolution(i,:) = obj_particles2.IO.eval (obj_particles2, var_name,x_evolution);      
     end

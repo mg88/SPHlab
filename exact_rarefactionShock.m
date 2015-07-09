@@ -70,14 +70,14 @@ classdef exact_rarefactionShock < handle
 
 
             options = optimoptions('fsolve','Display','off');  % Turn off display
-            pstar=fsolve(error,1.0662,options);
+            pstar   = fsolve(error,1.0662,options);
             
             %region 3 and 4
-            obj.p3=pstar;
-            obj.p4=pstar;
+            obj.p3 = pstar;
+            obj.p4 = pstar;
 
-            obj.v3= obj.v1 - (2*obj.a1)/(Gamma-1) * ( ( obj.p3/obj.p1)^((Gamma-1)/(2*Gamma)) -1 );
-            obj.v4= obj.v6 + (obj.p4-obj.p6)*sqrt(A6/(obj.p4+B6));
+            obj.v3 = obj.v1 - (2*obj.a1)/(Gamma-1) * ( ( obj.p3/obj.p1)^((Gamma-1)/(2*Gamma)) -1 );
+            obj.v4 = obj.v6 + (obj.p4-obj.p6)*sqrt(A6/(obj.p4+B6));
 
             obj.rho3 = obj.rho1 * (obj.p3/obj.p1)^(1/Gamma);
             obj.rho4 = obj.rho6*((obj.p6*(Gamma-1)+obj.p4*(Gamma+1))/(obj.p4*(Gamma-1)+obj.p6*(Gamma+1)));
@@ -139,7 +139,7 @@ classdef exact_rarefactionShock < handle
             obj.vj(I6)  = obj.v6;
 
             %ernergy
-            obj.ej =obj.pj./obj.rhoj/(obj.Gamma-1);            
+            obj.ej =obj.pj./obj.rhoj/(obj.Gamma-1);                
         end
         
         function plot(obj)

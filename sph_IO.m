@@ -17,11 +17,11 @@ classdef sph_IO < handle
         mfigure       %figurehandle
         plot_style
         plot_quantity
-        plot_dt
-        drawfluxes
+        plot_dt      
         fixaxes
+        plotconfig %struct
         %
-        latexplot
+        
         Sfont
         Sint
         %movie
@@ -61,8 +61,8 @@ classdef sph_IO < handle
               obj.plot_style    = obj_scen.plot_style;
               obj.plot_quantity = obj_scen.plot_quantity;                                          
               obj.exact_sol     = obj_scen.exact_sol;                                          
-              obj.latexplot     = obj_scen.latexplot;                                          
-              obj.drawfluxes    = obj_scen.drawfluxes;
+              obj.plotconfig    = obj_scen.plotconfig;
+              obj.fixaxes       = obj_scen.fixaxes;
               %% gridpoints to evaluate
               if obj_scen.Neval > 0
                   [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,obj_scen.Neval);
@@ -80,23 +80,32 @@ classdef sph_IO < handle
                   hdf5write([obj.output_name,'.h5'], '/name', 0); % ToDo: better solution?
                   save([obj.output_name,'_scen.mat'], 'obj_scen');
               end   
-              
-              %% conservation variables              
-              obj.con_mass = [];
-              obj.con_momentum =[];
-              obj.con_ang_momentum =[];
-              obj.con_momentum_diss =[];
-              obj.con_dt = [];
-              obj.con_e_kin =[];
-              obj.con_e_kin_diss =[];
-              obj.con_e_pot =[];
-              obj.con_e_pot_diss =[];
-              obj.fixaxes = obj_scen.fixaxes;
-              
-              %%
-              obj.t_last_plot = -inf;
-              obj.t_last_save = -inf;
-            end
+            end 
+          %% conservation variables              
+          obj.con_mass = [];
+          obj.con_momentum =[];
+          obj.con_ang_momentum =[];
+          obj.con_momentum_diss =[];
+          obj.con_dt = [];
+          obj.con_e_kin =[];
+          obj.con_e_kin_diss =[];
+          obj.con_e_pot =[];
+          obj.con_e_pot_diss =[];
+
+          %%
+          obj.t_last_plot = -inf;
+          obj.t_last_save = -inf;
+            
+            
+            %for latex plots:
+            %----------------
+           FontSize=15;
+           obj.Sfont= struct('FontUnits','points',...
+            'FontSize',FontSize,...
+            'FontName','Times');
+           obj.Sint = struct('interpreter','latex');
+            %------------------
+            
         end
         
         %% %%% general functions
@@ -107,7 +116,12 @@ classdef sph_IO < handle
                  obj.mfigure = figure;
                  set(gca,'DataAspectRatio',[1,1,1]);
                  if strcmp(get(0,'DefaultFigureWindowStyle'),'normal') %only when not docked
-                     if length(obj.plot_quantity) > 3
+                     if ~isempty(obj.plotconfig.figuresize)
+                         obj.mfigure.Units = 'centimeters';
+                         obj.mfigure.Position =obj.plotconfig.figuresize;                         
+                         obj.mfigure.PaperPosition =obj.plotconfig.figuresize;
+                     else
+                        if length(obj.plot_quantity) > 3
                             obj.mfigure.Units = 'normalized';
                             figpos=obj.mfigure.Position;
                             figpos(1)=0.1;
@@ -115,12 +129,13 @@ classdef sph_IO < handle
                             figpos(2)=0.1;
                             figpos(4)=0.8;
                             obj.mfigure.Position =figpos;
-                       elseif length(obj.plot_quantity) > 1 
+                        elseif length(obj.plot_quantity) > 1 
                             obj.mfigure.Units = 'normalized';
                             figpos=obj.mfigure.Position;
                             figpos(1)=0.1;
                             figpos(3)=0.8;
                             obj.mfigure.Position =figpos;
+                        end
                      end
                  end
             end
@@ -137,19 +152,15 @@ classdef sph_IO < handle
             
             %% output
            
-            %for latex plots:
-            %----------------
-           FontSize=15;
-           obj.Sfont= struct('FontUnits','points',...
-            'FontSize',FontSize,...
-            'FontName','Times');
-           obj.Sint = struct('interpreter','latex');
-            %------------------
+
         end
         %%
-        function do (obj, obj_particles,force)
+        function do (obj, obj_particles,force,flag_conservation)
             if nargin <3
                 force = false;
+            end
+            if nargin < 4
+                flag_conservation = true;
             end
             %% plotting
             if force||(((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
@@ -172,7 +183,9 @@ classdef sph_IO < handle
             end
             
             %check for conservation of mass and momentum            
-            save_conservation (obj,obj_particles);
+            if flag_conservation
+                save_conservation (obj,obj_particles);
+            end
 
         end       
         %%
@@ -207,17 +220,18 @@ classdef sph_IO < handle
                                 sum(momj,1)];
                             
             %% absorbed momentum:                          
-            nrm=false;
-            Inrc=0;
+            nrm  = false;
+            Inrc = 0;
             for boun=obj_p.bc
                 if strcmp(boun.type,'nrm')
-                    nrm=true;
+                   nrm = true;
                 elseif  strcmp(boun.type,'nrc')                   
                    % nrc:     
                    dI = boun.dvj_diss.*(obj_p.mj(boun.kb)*ones(1,obj_p.dim));
                    Inrc = Inrc + sum(dI,1) *obj_p.dt;   
                 end
             end
+            
             if (nrm && obj_p.compGhost) 
                 % nrm: dissipation of momentum  (at half step)          
                 momj_diss_add   = obj_p.IOdata_h.vjghost.*(obj_p.mj(obj_p.Ighost)*ones(1,obj_p.dim));                
@@ -233,10 +247,7 @@ classdef sph_IO < handle
                 previous = obj.con_momentum_diss(end,:);
             end
             obj.con_momentum_diss =[obj.con_momentum_diss;...
-                                    Inrc+Inrm+previous];            
-
-            
-            
+                                    Inrc+Inrm+previous];                      
             
             %% angular momentum
             if obj_p.dim == 2
@@ -326,6 +337,11 @@ classdef sph_IO < handle
         end
         %%
         function plot_conservation (obj)
+            if isempty(obj.con_dt)
+                disp('no conservation record available')
+                return
+            end
+            
             %set flags
             plotmass = any(diff(obj.con_mass) ~= 0);
             plotmomentum = ~isempty(obj.con_momentum);
@@ -337,91 +353,134 @@ classdef sph_IO < handle
             nplot = plotmass + plotmomentum + plotangmomentum + plotenergy;            
             iplot = 1;
             
+            %% -------------------------------------
             if plotmass  % plot only if change of mass occurs              
                 subplot(nplot,1,iplot)
+                box on;
                 iplot=iplot+1;
                 plot(obj.con_dt,obj.con_mass)
-                title('evolution of mass');
-                xlabel('t'); ylabel('mass')
+                h1=xlabel('$t$');
+                h2=ylabel('$m$');
+                if obj.plotconfig.latexplot
+                   set(h1,obj.Sfont,obj.Sint);
+                   set(h2,obj.Sfont,obj.Sint);
+                   % axis
+                   set(gca,obj.Sfont);
+                else
+                   title('evolution of mass');
+                end
             end
-            
+            %% -------------------------------------
             %momentum
             if plotmomentum
-                subplot(nplot,1,iplot)
+                subplot (nplot,1,iplot)
                 grid on;
                 hold on;
+                box on;
                 iplot=iplot+1;
                 %components (in 2d)
                 dim = size(obj.con_momentum,2);            
                 if dim ==1
                     plot(obj.con_dt,obj.con_momentum); 
-                    leg = 'I         ';
+                    leg = '$I_{int}$   ';
                     %dissipation:
                     if ~isempty(obj.con_momentum_diss)
                         plot(obj.con_dt,obj.con_momentum_diss,':');   
                         plot(obj.con_dt,obj.con_momentum_diss+obj.con_momentum,'k-.');   
-                        leg = [leg;'I_{diss}  ';'I_{tot}   '];
+                        leg = [leg;'$I_{abs}$   ';'$\sum I$    '];
                     end
                     mom_norm = abs(obj.con_momentum);           
 
                 else
                     mom_norm = sum(obj.con_momentum.*obj.con_momentum,2).^0.5;
                     plot(obj.con_dt,mom_norm);    
-                    leg = '|I|       ';
+                    leg = '$|I|$       ';
                     %components:
                     for i = 1: dim
                         plot(obj.con_dt,obj.con_momentum(:,i)) %x
-                        leg = [leg;'I_{x',num2str(i),'}    '];
+                        leg = [leg;'I_{x',num2str(i),'}      '];
                     end
                     %dissipation:
                     mom_norm_diss = sum(obj.con_momentum_diss.*obj.con_momentum_diss,2).^0.5;
                     if ~isempty(mom_norm_diss)
                         plot(obj.con_dt,mom_norm_diss,':');   
                         plot(obj.con_dt,mom_norm_diss+mom_norm,'k-.');   
-                        leg = [leg;'|I_{diss}|';'|I_{tot}| '];
+                        leg = [leg;'$|I_{abs}|$ ';'$|\sum I|$  '];
                     end                                        
                 end
-                legend(leg);
-                title('evolution of momentum (at half step)');
-                xlabel('t'); ylabel('momentum ')
+                h1=xlabel('$t$'); 
+                h2=ylabel('$I$');
+                h3=legend(leg);
+                if obj.plotconfig.latexplot
+                   set(h1,obj.Sfont,obj.Sint);
+                   set(h2,obj.Sfont,obj.Sint);
+                   set(h3,obj.Sfont,obj.Sint);
+                   % axis
+                   set(gca,obj.Sfont);
+                else
+                   title('evolution of momentum (at half step)');
+                end
+
             end
-            
+            %% -------------------------------------
             if plotangmomentum
                 subplot(nplot,1,iplot)
+                box on;
                 grid on;
                 hold on;
                 iplot=iplot+1; 
                 plot(obj.con_dt,obj.con_ang_momentum)
-                title('evolution of angular momentum');
-                xlabel('t'); ylabel('angular momentum')
+                h1=xlabel('t'); 
+                h2=ylabel('angular momentum');
+                if obj.plotconfig.latexplot
+                   set(h1,obj.Sfont,obj.Sint);
+                   set(h2,obj.Sfont,obj.Sint);
+                   set(h3,obj.Sfont,obj.Sint);
+                   % axis
+                   set(gca,obj.Sfont);
+                else
+                   title('evolution of angular momentum');
+                end
                 ang_mom_norm = sum(obj.con_ang_momentum.*obj.con_ang_momentum,2).^0.5;
             else
                 ang_mom_norm=[];
             end
-            
+            %% -------------------------------------
             if plotenergy
                 %energy
                 subplot(nplot,1,iplot)   
                 hold on;
                 grid on
-                etot = obj.con_e_pot+obj.con_e_kin;
+                box on;
+                sum_e  = obj.con_e_pot+obj.con_e_kin;
+                etot  = obj.con_e_pot+obj.con_e_kin;
                 plot(obj.con_dt,obj.con_e_pot,...
-                     obj.con_dt,obj.con_e_kin,...
-                     obj.con_dt, etot,'--');  
-                 leg = ['e_{pot}  ';'e_{kin}  ';'e_{tot}  '];
+                     obj.con_dt,obj.con_e_kin);                     
+                 
+                 leg = ['$e_{pot}$   ';'$e_{kin}$   '];
                  if ~isempty(obj.con_e_pot_diss)
-                     plot(obj.con_dt,obj.con_e_pot_diss,':',...
-                        obj.con_dt,obj.con_e_kin_diss,':',...
-                        obj.con_dt,obj.con_e_pot_diss+obj.con_e_kin_diss,'--'); 
-                     leg = [leg;'e_{pot,d}';'e_{kin,d}';'e_{tot,d}'];
-                     plot(obj.con_dt,obj.con_e_pot+obj.con_e_kin+...
-                                     +(obj.con_e_pot_diss+obj.con_e_kin_diss),'k-.');
-                     leg = [leg;'sum(e)   '];
+                     plot(obj.con_dt,obj.con_e_pot_diss,'--',...
+                        obj.con_dt,obj.con_e_kin_diss,'--');          
+                     sum_e= sum_e+(obj.con_e_pot_diss+obj.con_e_kin_diss); 
+                     leg = [leg;'$e_{pot,ab}$';'$e_{kin,ab}$'];
                  end
-                 legend (leg);
-                 title('energy (at half step)');
+                 plot(obj.con_dt,sum_e,'k-.');
+                 leg = [leg;'$\sum e$    '];
+
+                 h1=xlabel('$t$'); 
+                 h2=ylabel('$u$');
+                 h3=legend(leg);
+                 if obj.plotconfig.latexplot
+                   set(h1,obj.Sfont,obj.Sint);
+                   set(h2,obj.Sfont,obj.Sint);
+                   set(h3,obj.Sfont,obj.Sint);
+                   % axis
+                   set(gca,obj.Sfont);
+                 else
+                  title('energy (at half step)');
+                 end
             end
-            
+            %% -------------------------------------
             %move figure to the left side (only when not docked)
             if strcmp(get(0,'DefaultFigureWindowStyle'),'normal')
                 figpos=fig.Position;
@@ -487,6 +546,9 @@ classdef sph_IO < handle
                   pij_eval(kp+(1:n),:) =[k*ones(n,1),i_neighbours];
                   kp=kp+n;
            end
+           if isempty(pij_eval)
+              error('no particles in the region of evalution'); 
+           end
            %compute radius
            xij_h_eval = (x_eval(pij_eval(:,1),:)-obj_p.Xj(pij_eval(:,2),:));
            rij_eval   = sum(xij_h_eval.^2,2).^0.5;
@@ -524,7 +586,7 @@ classdef sph_IO < handle
            end
         end        
         %% %%%  Plotting functions %%% %%        
-        function p=plot_trisurf(~,x,y,z,max_r)  
+        function p = plot_trisurf(~,x,y,z,max_r)  
             %seperate because it is needed as an extra routine for a
             %comparison analysis, too.
             xy    = complex(x,y);
@@ -734,10 +796,11 @@ classdef sph_IO < handle
                        end 
                    end
                end   
-            end
-            
-            
-            %% start of routine
+             end
+             
+          %% --------------------------------------------
+          %% --------------------------------------------  
+          %% start of routine
           if nargin < 3 %use prescribed quantities to plot if not given
                A_quantities = obj.plot_quantity;
           end
@@ -762,8 +825,17 @@ classdef sph_IO < handle
                nyplot =1;
            else
                nxplot = ceil(nplot/2);
-               nyplot = 2;
+               nyplot = 2;               
            end
+           
+           %transpose plots
+           if obj.plotconfig.transpose
+               temp   = nxplot;
+               nxplot = nyplot;
+               nyplot = temp;
+           end
+           %---------------
+           
            iplot=1;
            x   = obj_p.Xj;
            t   = obj_p.t;
@@ -802,7 +874,7 @@ classdef sph_IO < handle
                    style   = obj.plot_style.d;
               elseif quantity == 'm'
                    name = 'massflux';
-                   dat_name = 'drhoj';
+                   dat_name = 'drhoj_tot';
                    axisname = '$\dot{\rho}$';
                    limaxes = obj.fixaxes.m;                   
                    style   = obj.plot_style.m;
@@ -824,6 +896,12 @@ classdef sph_IO < handle
                    axisname = '$u$';
                    limaxes = obj.fixaxes.e;
                    style   = obj.plot_style.e;
+               elseif quantity == 'c'
+                   name = 'speed of sound';
+                   dat_name = 'cj';
+                   axisname = '$c$';
+                   limaxes = obj.fixaxes.c;
+                   style   = obj.plot_style.c;
                else
                    warning('variable is not implemented for plotting');
                    keyboard
@@ -841,7 +919,15 @@ classdef sph_IO < handle
                        marker = '.';
                        p = plot_scatter(x,obj_p.(dat_name),mat,marker);                        
                        pp = p(1); % array of plot handles                       
-                       names={'SPH-data'}; % array of strings for legend
+                       names={'SPH-particles'}; % array of strings for legend
+                       % exact solution:
+                       if ~isempty(obj.exact_sol)
+                           xx=sort(x);
+                           obj.exact_sol.compute(t,xx);
+                           p=plot(xx,obj.exact_sol.(dat_name),'r-');                           
+                           pp=[pp;p];
+                           names=[names; 'analytical solution'];
+                       end
                        
                        % plot smoothed values
                        if ~isempty(obj.x_eval)
@@ -853,20 +939,19 @@ classdef sph_IO < handle
                            names=[names; 'smoothed values'];
                        end
                        
-                       % exact solution:
-                       if ~isempty(obj.exact_sol)
-                           obj.exact_sol.compute(t,x);
-                           p=plot(x,obj.exact_sol.(dat_name),'r.');
-                           pp=[pp;p];
-                           names=[names; 'analytical solution'];
-                       end
+
                        
                        %initial state of ghost particle   
                        if ~isempty(obj_p.IOdata.([dat_name,'ghost']))
                             plot(x(obj_p.Ighost),obj_p.IOdata.([dat_name,'ghost']),'kx');                       
                        end
-                       h=legend(pp, names);
-                       set(h,obj.Sfont,obj.Sint);
+                       
+                       %plot legend only if more than one property is in
+                       %the plot
+                       if size(names,1)>1
+                           h=legend(pp, names);
+                           set(h,obj.Sfont,obj.Sint);
+                       end
 
                        %mark mirror particle
 %                        if ~isempty(obj_particles.bc)
@@ -879,13 +964,14 @@ classdef sph_IO < handle
                        ylim([-inf,inf]);
                    end  
                    
-                   h=xlabel('$x$');
-                   set(h,obj.Sfont,obj.Sint);
-                   h=ylabel(axisname);
-                   set(h,obj.Sfont,obj.Sint);
-
-                   % axis
-                   set(gca,obj.Sfont);
+                   h1=xlabel('$x$');
+                   h2=ylabel(axisname);
+                   if obj.plotconfig.latexplot
+                     set(h1,obj.Sfont,obj.Sint);
+                     set(h2,obj.Sfont,obj.Sint);
+                       % axis
+                     set(gca,obj.Sfont);
+                   end
                    
                elseif obj_p.dim == 2
                    addcolorbar = false;
@@ -893,12 +979,10 @@ classdef sph_IO < handle
                       if strcmp (style,'ring')         
                             plot_ring(x(:,1),x(:,2));
                             view([-0.3,-1,1]);                                
-                            axis equal
                       elseif strcmp (style,'ringcloud')         
                             plot_ringcloud(x(:,1),x(:,2),mat);
                             view([-0.3,-1,1]);   
 %                             daspect([1,1,1])
-                            axis equal
                       elseif strcmp (style,'torus')         
                             sizeOfCirlce = obj_p.hj;
                             plot_torus(x(:,1),x(:,2),sizeOfCirlce);
@@ -906,7 +990,6 @@ classdef sph_IO < handle
                                  caxis(limaxes)
                             end
                             view([-0.3,-1,1]);                                
-                            axis equal 
                       else %default
                           if flag_cla %default marker                              
                               marker = '.';
@@ -915,9 +998,17 @@ classdef sph_IO < handle
                           end
                           plot_scatter(x(:,1),x(:,2),mat,marker); 
                       end
-                   elseif any(quantity == 'pdem') %perssure, density, energy, massflux -> scalar
+                      axis equal;
+                   elseif size(obj_p.(dat_name),2)==1 %pressure, density, energy, massflux, speed of sound -> scalar
                         if strcmp (style(1:5),'trisu')
-                            plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
+                            if strcmp(dat_name,'rhoj') && strcmp(obj_p.scheme,'a')
+                                %scale density
+                                plot_trisurf(obj,x(:,1),x(:,2),...
+                                    obj_p.(dat_name)./(2*pi*abs(x(:,2))),...
+                                    2*max(obj_p.hj));
+                            else %standard
+                                plot_trisurf(obj,x(:,1),x(:,2),obj_p.(dat_name),2*max(obj_p.hj));
+                            end
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -937,7 +1028,14 @@ classdef sph_IO < handle
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
-                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
+                            if strcmp(dat_name,'rhoj') && strcmp(obj_p.scheme,'a')
+                                %scale density
+                                plot_patches(x(:,1),x(:,2),...
+                                    obj_p.(dat_name)./(2*pi*abs(x(:,2)))...
+                                    ,sizeOfCirlce,opacity);
+                            else %standard
+                                  plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
+                            end
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -953,36 +1051,41 @@ classdef sph_IO < handle
                         else
                             error([style, '- plotstyle is not supported']);
                         end                                                
-                   elseif any(quantity == 'vf') % velocity, forces -> field
+                   elseif size(obj_p.(dat_name),2)==2  % velocity, forces -> field
                            dat_max = plot_field(x(obj_p.Iin,:),obj_p.(dat_name)(obj_p.Iin,:));
                            daspect([1,1,1])
                            title_additive= [title_additive,'; max|',quantity,'|=',num2str(dat_max)];
                    else
-                       error([obj.plotstyle, '- plotstyle is not supported']);
+                       error([obj.plotstyle, 'something went wrong with plotting!']);
                    end    
                    
                    if addcolorbar
                         h=colorbar;                           
                         h=ylabel(h, axisname); 
-                        set(h,obj.Sfont,obj.Sint);
                         colormap jet        
+                        if obj.plotconfig.latexplot
+                            set(h,obj.Sfont,obj.Sint);
+                        end
                    end
-                    h=xlabel('$x_1$');
-                    set(h,obj.Sfont,obj.Sint);
-                    h=ylabel('$x_2$');
-                    set(h,obj.Sfont,obj.Sint);
-                   % axis
-                   set(gca,obj.Sfont);
-
+                   h1=xlabel('$x_1$');
+                   h2=ylabel('$x_2$');
+                   
+                   if obj.plotconfig.latexplot
+                       set(h1,obj.Sfont,obj.Sint);
+                       set(h2,obj.Sfont,obj.Sint);
+                       % axis
+                       set(gca,obj.Sfont);
+                   end
                end 
               % plot leaving fluxes on the boundary:
-               if (any(quantity == 'vd') && obj.drawfluxes)
+               if (any(quantity == 'vd') && obj.plotconfig.drawfluxes)
                    add_fluxes(obj_p,dat_name);
                end
-               if ~obj.latexplot
+               if ~obj.plotconfig.latexplot
                   title([name,title_additive]);
                end
                title_additive='';
+               box on;
                %% plot additional info
                draw_geometry(obj,obj_p,dat_name);
                iplot = iplot+1;
@@ -1009,15 +1112,22 @@ classdef sph_IO < handle
                 %%-- draw damping boundary condition
                for boun = obj_p.bc
                    a = axis;
-                   if ~isempty(boun.damping_area)
-                       b = boun.damping_area;
-                       rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
-                                 'EdgeColor',[0,1,0.5]);
+                   if a(3) == -inf;
+                       a(3)= min(obj_p.(dat_name));
+                   end
+                   if a(4) == inf;
+                       a(4)= max(obj_p.(dat_name));
                    end
                    
                    if strcmp(boun.type,'noflow')
                         plot([boun.bp,boun.bp],a(3:4),'kx:');
-                   elseif strcmp (boun.type(1:2),'nr') && obj_p.dim==1
+                   elseif strcmp(boun.type,'nrd')
+                       b = boun.damping_area;
+                       rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
+                                 'EdgeColor',[0,1,0.5]);                   
+                   elseif (strcmp (boun.type(1:3),'nrc') ...
+                           || strcmp (boun.type(1:3),'nrm'))...
+                           && obj_p.dim==1
                         plot([obj_p.Xj(boun.kb),obj_p.Xj(boun.kb)],a(3:4),'bx:');
                    else
                        error('No such boundary type to plot');
@@ -1032,6 +1142,11 @@ classdef sph_IO < handle
                x2 = [obj_p.Omega(1,2), obj_p.Omega(2,1)];
                x3 = [obj_p.Omega(1,2), obj_p.Omega(2,2)];
                x4 = [obj_p.Omega(1,1), obj_p.Omega(2,2)];
+               
+               xlim( [obj_p.Omega(1,1), obj_p.Omega(1,2)]);
+               ylim( [obj_p.Omega(2,1), obj_p.Omega(2,2)]);
+               
+               
                if size(a,2)>4 && ~isempty(dat_name)%->3d
 %                     z =a(5);
                    z = mean(obj_p.(dat_name));
@@ -1120,6 +1235,39 @@ classdef sph_IO < handle
            end
            
         end
+        
+        %% save figure as eps
+        function savefigure(obj,t,h,suffix)
+            if nargin <2
+               tstring='';
+            else
+               tstring=num2str(t);
+               %remove point
+               tstring = strrep(tstring, '.', '-');
+            end
+            if (nargin <3 || isempty(h))
+                h=gcf;
+            end
+            if nargin <4
+                suffix = '-eps';
+            end            
+            if strcmp(suffix,'eps')
+                type = 'epsc2';
+            else
+                type = suffix;
+            end
+            dir  = 'figures/';
+            name = obj.plotconfig.figurename;
+            if ~isempty(name)
+                fullname = [dir,name,'_',tstring,'.',suffix];
+%                 saveas(h,fullname,type, '-r300')    
+                print(h,fullname, ['-d',type], '-r300'); %<-Save as PNG with 300 DPI
+                disp (['saved figure in ',fullname]);
+            else
+                warning('define a figure name');
+            end
+        end
+        
         %% %%% In/out %%% %%
         %%
         function read_hdf5(~,obj_data,filename,group)
@@ -1167,6 +1315,7 @@ classdef sph_IO < handle
             
             %energy
             obj_data.ej = readVariable('e',filename,group);
+            
             % some extra information (only available from a simulation
             % output - and not necessary to create a scenario)
             

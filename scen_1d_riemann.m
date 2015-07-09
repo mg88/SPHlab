@@ -5,14 +5,14 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot      = 200;
+ps.Ntot      = 400;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
 % ps.dtfactor  = 0.1;
-ps.tend      = 7; 
-% ps.tpause   = 1e-2;%0.9:0.02:2;%1.0:0.2:3;
-ps.eta     = 1.7;     
-ps.set_kernel('M4');
+ps.tend      = 3; 
+% ps.tpause   = [0.4,1.3,2];%0.9:0.02:2;%1.0:0.2:3; $and save a figure
+ps.eta     = 1.2;     
+ps.set_kernel('Gauss');
 
 ps.scheme  = 'm';
 ps.EOS     = 'ISO';
@@ -22,23 +22,26 @@ e0 = 0;
 
 ps.h_const   = false;
 %experimental settings:
-ps.compOmegaj = false;
-% ps.exp_settings.tweakmass = true;
+ps.compOmegaj = true;
+ps.normalizeOmega = false;
+ps.exp_settings.tweakmass = false;
 
 
 %IO
-ps.plot_dt = 5e-2;  
+% ps.plot_dt = 5e-2;  
 ps.save_as_movie = false;
 ps.movie_name = 'out2';
 ps.plot_quantity = 'vp';  %p
-ps.fixaxes.v = [-0.15, 0.85];
-% ps.fixaxes.p = [0.995, 1.005];
-% ps.fixaxes.p = [-1e-0, 1e-0];
-ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
+ps.fixaxes.v = [-0.001, 0.01];
+ps.fixaxes.p = [-0.1e-2, 0.7e-2];
+% ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
-ps.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
-ps.latexplot = true;
-ps.drawfluxes = false;
+ps.plotconfig.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
+ps.plotconfig.latexplot = true;
+% ps.plotconfig.drawfluxes = false;
+% ps.plotconfig.transpose  = true;
+% ps.plotconfig.figuresize = [3,3,8,15];
+% ps.plotconfig.figurename = '';%'cancelation_v';
 % ps.Neval = 300;
 %output
 ps.save_dt = 5e-2;
@@ -51,36 +54,41 @@ rho0 = 1;     % density
 c0   = 1.0; 
 MG_Gamma = 2; %(alu)
 MG_S     = 1.338;
-% ps.art_diss_para.alpha_mass = 0.5;
+% ps.art_diss_para.alpha_mass = 0.3;
+% ps.art_diss_para.beta_mass = 0.4;
+% ps.art_diss_para.alpha_viscosity = 0.2;
+% ps.art_diss_para.beta_viscosity = 0.5;
 %  ps.art_diss_para.alpha_energy = 0;
 %  ps.art_diss_para.beta_energy = 0;
- % ps.art_diss_para.beta_mass = 0;
-% ps.art_diss_para.beta_viscosity = 0;
 %% domain         
-ps.Omega = [-2.7, 2.7]; 
+ps.Omega = [-1.7, 1.7]; 
 
 %% active particles
-xl=-1.5;
-xm=1.1;
-xr=1.5;
+xl = -1.3;
+xm = 1.0;
+xr = 1.3;
 %left
-% omega_geo = [xl,-xm]; %x
-% v0   = -0.00;
-% ps.add_geometry(omega_geo, rho0, v0, c0,e0)
-% set BC
+omega_geo = [xl,-xm]; %x
+v0   = 0.03;
+ps.add_geometry(omega_geo, rho0, v0, c0,e0)
+%% set BC
 % ps.add_bc('nrc',max(xl,-xm),-1);
 
 %middle
 omega_geo = [-xm,xm]; %x
-v0   = 0.1;
+v0   = 0.;
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
+damping_area = [0.7,1.05];
+% ps.add_bc('nrc',xm,1,damping_area);
+
+
 
 % right
-omega_geo = [xm,xr]; %x
-v0   = 0.00;
-ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
+% omega_geo = [xm,xr]; %x
+% v0   = -0.01;
+% ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %% set BC
-ps.add_bc('nrc',xr,1.5);
+% ps.add_bc('nrc',xr,1.5);
 
 % right %bigger particles:
 % omega_geo = [0.6,0.7];
