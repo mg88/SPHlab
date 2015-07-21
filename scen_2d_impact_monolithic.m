@@ -5,12 +5,12 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 1600; %40000
+ps.Ntot    = 10000; %40000 %1600
 ps.equalmass = false;
 
-ps.dtfactor = 0.3;
-% ps.dt       = 2e-10;
-ps.tend     = 0.45e-6;%0.45e-6;   
+% ps.dtfactor = 0.3;
+% ps.dt       = 1e-8;
+ps.tend     = 4e-7;%0.45e-6;   
 %  ps.tpause   = 0;
 ps.eta      = 1.2;     
 ps.set_kernel('M4');
@@ -19,34 +19,33 @@ ps.compOmegaj  = true;
 ps.h_const  = false;
 
 % IO
-ps.plot_dt = 3e-8;   
+% ps.plot_dt = 1e-8;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'cpde';%vpd';
+ps.plot_quantity = 'x';%vpd';
 ps.plot_style.p = 'patches';
 % ps.plot_style.d = 'trisurf';
 ps.plot_style.e = 'patches';
 
-%ps.fixaxes.p = [-0.5,0.5];
+ps.fixaxes.p = [0,1e11];
 %output
 ps.save_dt = 1e-8;
-ps.write_data = true;
+ps.write_data = false;
 ps.output_name ='data/impactMG_monolithic';
-ps.plotconfig.latexplot = false;
+ps.plotconfig.latexplot = true;
 %% material parameter
 ps.EOS     = 'MG';
 e0 = 0;
-MG_Gamma = 2;
-MG_S     = 1.338;
 
-ps.art_diss_para.alpha_mass = 0.5;
-ps.art_diss_para.beta_mass = 1;
-ps.art_diss_para.alpha_viscosity = 1;
-ps.art_diss_para.beta_viscosity = 2;
-ps.art_diss_para.alpha_energy = 1;
-ps.art_diss_para.beta_energy = 0;
+
+% ps.art_diss_para.alpha_mass = 0.5;
+% ps.art_diss_para.beta_mass = 0;
+% ps.art_diss_para.alpha_viscosity = 1;
+% ps.art_diss_para.beta_viscosity = 2;
+% ps.art_diss_para.alpha_energy = 1;
+% ps.art_diss_para.beta_energy = 0;
 
 %general
-ps.Omega = [-0.005,0.01;  %x
+ps.Omega = [-0.005,0.005;  %x
             -0.007,0.007]; %y  
 
 %% plate
@@ -60,13 +59,19 @@ omega_geo_cut = [0, 3e-3;     %x
 % set BC
 bp = [0,omega_geo_cut(2,1)]; %bottom
 outer_normal = [0,-1];
-ps.add_bc('nrc',bp,outer_normal);
+ps.add_bc('nrm',bp,outer_normal);
 bp = [0,omega_geo_cut(2,2)]; % top
 outer_normal = [0,1];
 ps.add_bc('nrc',bp,outer_normal);
 
-rho0 = 2700;   
-c0   = 6320; 
+% rho0 = 2700;   
+% c0   = 6320; %m/s
+% MG_Gamma = 2;
+% MG_S     = 1.338;
+MG_Gamma = 1.7;
+MG_S     = 1.5;
+rho0 = 2710;   
+c0   = 5300; 
 v0 = [0,0];
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 
@@ -76,8 +81,8 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 shift = 1e-3;
 omega_geo = [-1e-3-shift,0-shift;
              -2.5e-3, 2.5e-3];
-rho0 = 2700;
-c0 = 6320;
+% rho0 = 2700;
+% c0 = 6320;
 v0 = [1.5*c0,0];
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 

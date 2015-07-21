@@ -3,8 +3,14 @@
 
 close all; clear; clc;
 
-input_name = 'impactMG_monolithic';
+input_name = 'impactMG_laminate2_300002';
+% input_name = 'impactISO_org2';
+% input_name = 'impactISO_cut2';
+% input_name = 'impactISO_bc2';
+
+
 in_namedir = ['data/',input_name];
+
 % input_name1 = 'data/square3_bc';
 
 % input_name1 = '../../../../Desktop/out-hvi';
@@ -13,14 +19,25 @@ in_namedir = ['data/',input_name];
 ps1 = sph_scenario(in_namedir);
 ps1.plotconfig.figurename = input_name;
 ps1.plotconfig.latexplot = true;
-% ps1.plot_quantity = 'xp';
-% ps1.plot_style.x = 'ringcloud';
-ps1.plot_style.e = 'patches';
-%
+ps1.plot_quantity = 'x';
+ps1.plot_style.x = 'ringcloud';
+ps1.plotconfig.figuresize = []; %empty: make default
+ps1.plotconfig.transpose = []; %empty: make default
 
+
+% ps1.plot_style.x = 'ringcloud';
+% ps1.plot_style.e = 'patches';
+
+%movie:
+ps1.save_as_movie = false;
+ps1.movie_name = input_name;
+
+%figure:
+ps1.save_as_figure = false;
+ps1.figure_format = 'eps';
 
 % intervall of plotting (every di step)
-di = 2;
+di = 3;
 
 % ps1.eta = 1.2;
 % ps1.Omega = [ -0.1, 0.4;
@@ -52,8 +69,9 @@ for i=I;
     group = data.Groups(i).Name;   %(time)
     obj_particles1.IO.read_hdf5(obj_particles1,in_namedir,group);    
     obj_particles1.IO.do(obj_particles1,true,false);
+
 %     obj_part#icles1.IO.plot_data(obj_particles1,'p'); 
-    obj_particles1.IO.savefigure(group(2:end),'','png')
+%     obj_particles1.IO.savefigure(group(2:end),'','png')
 end
 obj_particles1.IO.finalize();
 

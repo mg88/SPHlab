@@ -67,7 +67,8 @@ classdef sph_scenario < handle
         write_data
         save_dt             %timestep for saving the data
         output_name        
-       
+        save_as_figure %bool
+        figure_format
         % some plotting properties
         
         plot_dt         % plotting timestep
@@ -109,10 +110,10 @@ classdef sph_scenario < handle
            obj.beta = 0; %material dependent!
            obj.mu   = 0;
            obj.art_diss_para = struct('alpha_mass',0.5,... %Iason2014 (Spheric)
-                                      'beta_mass',1,...
+                                      'beta_mass',0,...
                                       'alpha_viscosity',1,...
                                       'beta_viscosity',2,...
-                                      'alpha_energy',1,...
+                                      'alpha_energy',0.3,...
                                       'beta_energy',0);
            obj.geo = struct([]);
 
@@ -141,6 +142,8 @@ classdef sph_scenario < handle
            obj.Nss   = 1; %(no supersampling)
            
            obj.save_as_movie = false;
+           obj.save_as_figure = false;
+           obj.figure_format = 'eps';
            obj.movie_name = 'out';
            obj.write_data = false; 
            obj.output_name ='data/data_out';
@@ -188,7 +191,7 @@ classdef sph_scenario < handle
         %%
         function name = get_movie_name(obj)
             movie_dir='movies/'; %ToDo: anders machen
-            movie_format='.avi';
+            movie_format='.mp4';
             name=[movie_dir,obj.movie_name,movie_format];
         end
         %%  
@@ -206,6 +209,9 @@ classdef sph_scenario < handle
                obj.kernel_cutoff = 2.5;
            elseif strcmp(kernel, 'Gauss')
                obj.kernel_cutoff = 4;
+           elseif strcmp(kernel, 'linear')
+               warning('Linear kernel is experimental!');
+               obj.kernel_cutoff = 2;
            else
                error('Kernel not supported!');
            end

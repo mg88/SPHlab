@@ -5,14 +5,14 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot      = 400;
+ps.Ntot      = 500;
 ps.equalmass = false;
 % ps.dt        = 1e-5;
 % ps.dtfactor  = 0.1;
 ps.tend      = 3; 
-% ps.tpause   = [0.4,1.3,2];%0.9:0.02:2;%1.0:0.2:3; $and save a figure
+%  ps.tpause   = 0;%[0.4,1.3,2];%0.9:0.02:2;%1.0:0.2:3; $and save a figure
 ps.eta     = 1.2;     
-ps.set_kernel('Gauss');
+ps.set_kernel('linear');
 
 ps.scheme  = 'm';
 ps.EOS     = 'ISO';
@@ -22,19 +22,17 @@ e0 = 0;
 
 ps.h_const   = false;
 %experimental settings:
-ps.compOmegaj = true;
+ps.compOmegaj = false;
 ps.normalizeOmega = false;
 ps.exp_settings.tweakmass = false;
 
 
 %IO
-% ps.plot_dt = 5e-2;  
-ps.save_as_movie = false;
-ps.movie_name = 'out2';
+ps.plot_dt = 5e-2;  
 ps.plot_quantity = 'vp';  %p
-ps.fixaxes.v = [-0.001, 0.01];
-ps.fixaxes.p = [-0.1e-2, 0.7e-2];
-% ps.fixaxes.d = [1-2e-3 ,1+2e-3 ];
+ps.fixaxes.v = [-0.0001, 0.0006];
+ps.fixaxes.p = [-0.8e-3, 0.8e-3];
+ ps.fixaxes.d = [1-1e-4 ,1+6e-4 ];
 % ps.fixaxes.e = [1.49 ,1.51];%1e-5 ];
 ps.plotconfig.fixaxes.f = [-1e-3 ,1e-3];%1e-5 ];
 ps.plotconfig.latexplot = true;
@@ -48,7 +46,7 @@ ps.save_dt = 5e-2;
 ps.write_data = false;
 ps.output_name ='data/riemann_boun_mass';
 ps.save_as_movie = false;
-ps.movie_name = '1Driemann_Ma0.7';
+ps.movie_name = 'reflection';
  %% material parameter
 rho0 = 1;     % density
 c0   = 1.0; 
@@ -61,15 +59,15 @@ MG_S     = 1.338;
 %  ps.art_diss_para.alpha_energy = 0;
 %  ps.art_diss_para.beta_energy = 0;
 %% domain         
-ps.Omega = [-1.7, 1.7]; 
+ps.Omega = [-1.5, 2.3]; 
 
 %% active particles
-xl = -1.3;
+xl = -1.1;
 xm = 1.0;
 xr = 1.3;
 %left
 omega_geo = [xl,-xm]; %x
-v0   = 0.03;
+v0   = 0.001;
 ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 %% set BC
 % ps.add_bc('nrc',max(xl,-xm),-1);
@@ -78,14 +76,14 @@ ps.add_geometry(omega_geo, rho0, v0, c0,e0)
 omega_geo = [-xm,xm]; %x
 v0   = 0.;
 ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
-damping_area = [0.7,1.05];
-% ps.add_bc('nrc',xm,1,damping_area);
+% damping_area = [0.7,1.05];
+ ps.add_bc('nrm',xm,1);
 
 
 
 % right
 % omega_geo = [xm,xr]; %x
-% v0   = -0.01;
+% v0   = -0.001;
 % ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %% set BC
 % ps.add_bc('nrc',xr,1.5);

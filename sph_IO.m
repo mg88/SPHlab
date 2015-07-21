@@ -10,7 +10,7 @@ classdef sph_IO < handle
         
         %output       
         output_name
-        write_data
+        write_data        
         save_dt
         
         %plot
@@ -24,6 +24,9 @@ classdef sph_IO < handle
         
         Sfont
         Sint
+        
+        save_as_figure
+        figure_format
         %movie
         save_as_movie
         movie_name
@@ -55,6 +58,8 @@ classdef sph_IO < handle
             if nargin == 1 %else, use only the functions
               %% some IO properties
               obj.save_as_movie = obj_scen.save_as_movie;
+              obj.save_as_figure = obj_scen.save_as_figure;
+              obj.figure_format = obj_scen.figure_format;
               obj.movie_name    = get_movie_name(obj_scen);
               obj.save_dt       = obj_scen.save_dt;
               obj.plot_dt       = obj_scen.plot_dt;
@@ -113,7 +118,7 @@ classdef sph_IO < handle
 
             %% plot
             if ~strcmp(obj.plot_quantity,'')  %plot only, if plotstlye is specified
-                 obj.mfigure = figure;
+                 obj.mfigure = figure('Color',[1 1 1]);
                  set(gca,'DataAspectRatio',[1,1,1]);
                  if strcmp(get(0,'DefaultFigureWindowStyle'),'normal') %only when not docked
                      if ~isempty(obj.plotconfig.figuresize)
@@ -134,6 +139,8 @@ classdef sph_IO < handle
                             figpos=obj.mfigure.Position;
                             figpos(1)=0.1;
                             figpos(3)=0.8;
+                            figpos(2)=0.1;
+                            figpos(4)=0.5;
                             obj.mfigure.Position =figpos;
                         end
                      end
@@ -146,8 +153,10 @@ classdef sph_IO < handle
 %                 set(gca,'DataAspectRatio',[1,1,1]);
 %                 obj.mfigure.Units = 'normalized';
 %                 obj.mfigure.Position = [0 0 1 1];
-                obj.vidObj     = VideoWriter(obj.movie_name);
-                open(obj.vidObj);
+                obj.vidObj  = VideoWriter(obj.movie_name,'MPEG-4');
+                obj.vidObj.FrameRate = 5;
+
+                open(obj.vidObj);                
             end   
             
             %% output
@@ -169,7 +178,10 @@ classdef sph_IO < handle
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
                     writeVideo(obj.vidObj,currFrame);
-                end         
+                end   
+                if obj.save_as_figure
+                    obj.savefigure(obj_particles.t)
+                end
                 obj.t_last_plot = obj_particles.t;
             end  
             
@@ -468,7 +480,7 @@ classdef sph_IO < handle
                  leg = [leg;'$\sum e$    '];
 
                  h1=xlabel('$t$'); 
-                 h2=ylabel('$u$');
+                 h2=ylabel('$e$');
                  h3=legend(leg);
                  if obj.plotconfig.latexplot
                    set(h1,obj.Sfont,obj.Sint);
@@ -788,10 +800,10 @@ classdef sph_IO < handle
                        %plot data
                        if kx==1 %to the top/bottom
                             plot(xleft:dx:xright,y0+dat1','rx')
-                            text(xright,y0,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
+                            %text(xright,y0,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
                        else %to the right/left
                             plot(y0+dat1',xleft:dx:xright,'rx')
-                            text(y0,xright+0.2*len,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
+                            %text(y0,xright+0.2*len,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
 
                        end 
                    end
@@ -816,13 +828,13 @@ classdef sph_IO < handle
                %do not change the focus (silent update of the figure)
                 set(groot,'CurrentFigure',obj.mfigure)               
            else
-               figure %open new figure
+               figure('Color',[1 1 1]); %open new figure
            end
            
            nplot = length(A_quantities);
            if nplot <=3    
                nxplot = nplot;
-               nyplot =1;
+               nyplot = 1;
            else
                nxplot = ceil(nplot/2);
                nyplot = 2;               
@@ -853,7 +865,6 @@ classdef sph_IO < handle
                
                hold on;
                axis normal
-               
                if quantity == 'x'
                    dat_name = '';
                    name = 'position';
@@ -863,7 +874,7 @@ classdef sph_IO < handle
                elseif quantity == 'p'
                    dat_name = 'pj';
                    name = 'pressure';
-                   axisname = '$p$';
+                   axisname = 'pressure $[Pa]$';
                    limaxes = obj.fixaxes.p;
                    style   = obj.plot_style.p;
                elseif quantity == 'd'
@@ -893,7 +904,7 @@ classdef sph_IO < handle
                elseif quantity == 'e'
                    name = 'energy';
                    dat_name = 'ej';
-                   axisname = '$u$';
+                   axisname = '$e$';
                    limaxes = obj.fixaxes.e;
                    style   = obj.plot_style.e;
                elseif quantity == 'c'
@@ -949,8 +960,10 @@ classdef sph_IO < handle
                        %plot legend only if more than one property is in
                        %the plot
                        if size(names,1)>1
-                           h=legend(pp, names);
-                           set(h,obj.Sfont,obj.Sint);
+                           if quantity=='d'
+                               h=legend(pp, names);
+                               set(h,obj.Sfont,obj.Sint);
+                           end
                        end
 
                        %mark mirror particle
@@ -994,7 +1007,7 @@ classdef sph_IO < handle
                           if flag_cla %default marker                              
                               marker = '.';
                           else        %alternative marker (in order to compare two solutions)
-                              marker ='o';
+                              marker ='x';
                           end
                           plot_scatter(x(:,1),x(:,2),mat,marker); 
                       end
@@ -1097,10 +1110,15 @@ classdef sph_IO < handle
         end          
         %%
         function draw_geometry(~,obj_p,dat_name)
+           %----------------------------
+           %config:
            mark_point = false;
            draw_cells = false;
            draw_connectivity = false;                %only 2d
-
+           %connections of which points?
+           AiX=1:500:obj_p.N;
+           AiX = 593;
+           %----------------------------
            if nargin<3
                dat_name='';
            end
@@ -1168,7 +1186,6 @@ classdef sph_IO < handle
                %% draw connectivity
                if draw_connectivity               
                    colo='gbkrmcy';
-                   AiX=1:500:obj_p.N;
                    for kk = 1:length(AiX)
                        iX= AiX(kk);
                         neigh_iX = [obj_p.pij(obj_p.pij(:,1)==iX,2);obj_p.pij(obj_p.pij(:,2)==iX,1)]; %neighbours of iX
@@ -1192,7 +1209,7 @@ classdef sph_IO < handle
                       y = obj_p.Omega(2,1) + (k/(obj_p.Nc(2)))*(obj_p.Omega(2,2)-obj_p.Omega(2,1));
                       plot([obj_p.Omega(1,1),obj_p.Omega(1,2)],[y,y],':k')
                    end 
-                   vline = [obj_p.Omega(2,1),obj_p.Omega(2,2)]
+                   vline = [obj_p.Omega(2,1),obj_p.Omega(2,2)];
                else
                    a=axis;
                    vline =[a(3) ,a(4)];
@@ -1235,6 +1252,12 @@ classdef sph_IO < handle
            end
            
         end
+        %%
+        function draw_points(~,obj,ind)
+           hold on;
+           plot(obj.Xj(ind,1),obj.Xj(ind,2),'x');            
+        end
+        
         
         %% save figure as eps
         function savefigure(obj,t,h,suffix)
@@ -1249,7 +1272,7 @@ classdef sph_IO < handle
                 h=gcf;
             end
             if nargin <4
-                suffix = '-eps';
+                suffix = obj.figure_format;
             end            
             if strcmp(suffix,'eps')
                 type = 'epsc2';

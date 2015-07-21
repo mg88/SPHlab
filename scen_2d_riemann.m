@@ -64,7 +64,7 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0)
 %no-reflecting bc right
 bp = [r,0];
 outer_normal = [1,0];
-ps.add_bc('nrc',bp,outer_normal);
+ps.add_bc('nrm',bp,outer_normal);
 
 %no-flow on bottom
 bp =  [0,h1];

@@ -4,8 +4,11 @@
 % close all; clear; clc;
 
 %input_name = 'data/impact';
-input_name1 = 'data/impactMG_laminate2';
-input_name2 = 'data/impactMG_laminate2_nobc';
+% input_name1 = 'data/impactISO_org';
+% input_name2 = 'data/impactMG_laminate2_nobc';
+
+input_name1 = 'data/impactISO_org';
+input_name2 = 'data/impactISO_bc';
 
 % input_name1 = 'data/square3_org';
 % input_name2 = 'data/square3_bc';
@@ -15,13 +18,13 @@ di = 1;
 Tstart = 0.e-4;%0.68e-4;
 Tend = 5.5e-5;
 compare_position   = 0;
-plot_solutions     = 0;
+plot_solutions     = 1;
 plot_difference    = 0;
 l2error_evolution  = 0;
-boundary_evolution = 1;
+boundary_evolution = 0;
 
 % zoom in:
-zoom_in = true;
+zoom_in = false;
 x_zoom = [0.001,0.03];
 r_zoom = 0.005;
 
@@ -32,9 +35,9 @@ r_magnify = 0.005;
             
 % compare solution (show side by side)
 plot_name  = 'p'; %what value shall I plot
-plot_style = 'trisurf';
+plot_style = 'patches';
 limaxes    = 1e8 *[-8,8];
-movie_name = '';%'test'; %'movies/comp3.avi';  % empty means no video
+movie_name = 'movies/impact_comp2.mp4';%'test'; %'movies/comp3.avi';  % empty means no video
 
 var_name = 'pj'; %for evaluation
 Neval   = 2000;
@@ -43,11 +46,18 @@ Omega_compare = [-10e-3,30e-3;     %x
                  -100e-3,100e-3];%y 
              
 % boundary evolution: evaluation point:
-x_evolution = [0.01, 0.07];             
+x_evolution = [0.01, 0.055];             
     
 %% generate objects:
 ps1 = sph_scenario(input_name1);
 ps2 = sph_scenario(input_name2);
+%
+ps1.plotconfig.figuresize = []; %empty: make default
+ps1.plotconfig.transpose = []; %empty: make default
+ps1.plotconfig.latexplot = true; %empty: make default
+ps2.plotconfig.figuresize = []; %empty: make default
+ps2.plotconfig.transpose = []; %empty: make default
+ps2.plotconfig.latexplot = true; %empty: make default
 
 %% write to object
 ps1.Neval = Neval;
@@ -83,7 +93,7 @@ I=I(logical((T(I)>Tstart) .* (T(I)<Tend)));
 
 %% create figures
 % figure for position comparison  (in one plot)
-position_fig = figure();
+position_fig = figure('Color', [1 1 1]);
 if extra_magnify
     %get data from original axes
     ax1=gca;
@@ -112,15 +122,16 @@ end
 nisubplot = 1;
 njsubplot = 2*plot_solutions + plot_difference;
 if njsubplot >0
-    errfig = figure();
+    errfig = figure('Color',[1 1 1]);
 end
 
 %% movie
 if ~isempty(movie_name)
     set(gca,'DataAspectRatio',[1,1,1]);
     errfig.Units = 'normalized';
-    errfig.Position = [0 0 1 1];
-    vidObj  = VideoWriter(movie_name);
+    errfig.Position = [0.1 0.1 0.9 0.9];
+    vidObj  = VideoWriter(movie_name,'MPEG-4');
+    vidObj.FrameRate = 5;
     open(vidObj);
 end   
 
@@ -153,8 +164,7 @@ for i=1:nI;
         obj_particles1.IO.plot_data(obj_particles1,'x',false,true);
         %plot position (without clearing axes) -> x-marker
         obj_particles2.IO.plot_data(obj_particles2,'x',false,false);
-        set(gca,'DataAspectRatio',[1,1,1]);
-        
+        set(gca,'DataAspectRatio',[1,1,1]);        
         if zoom_in
             xlim ([x_zoom(1)-r_zoom,x_zoom(1)+r_zoom]);
             ylim ([x_zoom(2)-r_zoom,x_zoom(2)+r_zoom]);
@@ -171,8 +181,7 @@ for i=1:nI;
             axes(ax2);
         end
     end
-    
-    
+       
     %% plot the solutions:
     if plot_solutions
         figure(errfig)
@@ -181,6 +190,11 @@ for i=1:nI;
         %plot 1
         subplot(nisubplot,njsubplot,iplot); iplot=iplot+1;
         obj_particles1.IO.plot_data(obj_particles1,plot_name,false);                
+          % ----------
+        %draw same boundary line as above
+        hold on;
+        obj_particles1.IO.draw_geometry(obj_particles2)
+        
         if zoom_in
             xlim ([x_zoom(1)-r_zoom,x_zoom(1)+r_zoom]);
             ylim ([x_zoom(2)-r_zoom,x_zoom(2)+r_zoom]);
@@ -189,10 +203,7 @@ for i=1:nI;
         subplot(nisubplot,njsubplot,iplot); iplot=iplot+1;
         obj_particles2.IO.plot_data(obj_particles2,plot_name,false);
         
-         % ----------
-        %draw same boundary line as above
-        hold on;
-        obj_particles1.IO.draw_geometry(obj_particles1)
+
 
 %         %boundary lines:
 %         hold on;
@@ -233,7 +244,7 @@ for i=1:nI;
         obj_particles1.IO.plot_trisurf(x_eval(:,1),x_eval(:,2),(dat_eval2-dat_eval1),2*max(dx));        
         hold on;
         %add Omega and boundary lines
-        obj_particles1.IO.draw_geometry(obj_particles1)
+        obj_particles1.IO.draw_geometry(obj_particles2)
         set(gca,'gridlinestyle','none');
         caxis(limaxes)
         view (2)
@@ -260,34 +271,48 @@ for i=1:nI;
     %% movie:
     if ~isempty(movie_name)
          currFrame = getframe(errfig);
-%         writeVideo(vidObj,currFrame);
-          im = frame2im(currFrame);
-          [imind,cm] = rgb2ind(im,256);
-          if i == 1;
-              imwrite(imind,cm,movie_name,'gif', 'Loopcount',inf);
-          else
-              imwrite(imind,cm,movie_name,'gif','WriteMode','append');
-          end
+         writeVideo(vidObj,currFrame);
+%           im = frame2im(currFrame);
+%           [imind,cm] = rgb2ind(im,256);
+%           if i == 1;
+%               imwrite(imind,cm,movie_name,'gif', 'Loopcount',inf);
+%           else
+%               imwrite(imind,cm,movie_name,'gif','WriteMode','append');
+%           end
         
     end            
 end
 
+% sompe layout properties: (plot in latex style)
+%---------------- 
+FontSize=15;
+Sfont= struct('FontUnits','points',...
+'FontSize',FontSize,...
+'FontName','Times');
+Sint = struct('interpreter','latex');
+
 %%
 if l2error_evolution
-    figure
+     figure('Color',[1 1 1]); 
     plot (T,l2err_evolution,'xb-');
     title([group,'; ',num2str(Neval),' evaluation particles']);   
 end
 
 %%
 if boundary_evolution
-    figure 
+    figure('Color',[1 1 1]); 
     plot(T,dat1_evolution,'b-',...
          T,dat2_evolution,'r-');   
-    title('evolution at point x');
-    legend(input_name1,input_name2);
-    xlabel('t');
-    ylabel(var_name);
+%     title('evolution at point x');
+    h=legend(input_name1,input_name2);
+    set(h,Sfont,Sint);
+
+    h1=xlabel('$t$');
+    h2=ylabel(var_name);
+    set(h1,Sfont,Sint);
+    set(h2,Sfont,Sint);
+    set(gca,Sfont);
+
 end
 
 if ~isempty(movie_name)

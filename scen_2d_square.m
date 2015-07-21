@@ -8,22 +8,23 @@ ps = sph_scenario();
 ps.Ntot    = 500;
 ps.dtfactor= 0.4;
 % ps.tpause  = 0;%(1:10)*2e-5;
-ps.tend    = 2e-4;    
+ps.tend    = 8e-4;    
 ps.eta     = 1.2;     
 
 %IO
 ps.plot_dt = 1e-6;   
-ps.save_as_movie = false;
+ps.save_as_movie = true;
 ps.movie_name = 'test_nrbc_square';
 
 ps.plot_quantity = 'vdp';
 ps.plot_style.p = 'trisurf';
 ps.plot_style.d = 'trisurf';
-ps.plot_style.e = 'trisurfp';
+ps.plot_style.e = 'trisurf';
 
-ps.fixaxes.p = 1e9*[-1,1];
-% ps.fixaxes.d = [2000,4800];
+% ps.fixaxes.p = 1e9*[-0.5,0.5];
+%  ps.fixaxes.d = [2980,3050];
 
+ps.plotconfig.latexplot = true;
 
 %% material parameter
 rho0 = 3000.0;  
@@ -31,7 +32,7 @@ c0   = 5000;
 e0=0;
 MG_Gamma = 2; %(alu)
 MG_S     = 1.338;
-ps.EOS     = 'ISO';
+ps.EOS     = 'MG';
 
 %% domain
 ps.Omega = [-0.3,0.3;
@@ -51,7 +52,7 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 %no-reflecting bc right
 bp = [r,0];
 outer_normal =[1,0];
-ps.add_bc('nrc',bp,outer_normal);
+% ps.add_bc('nrc',bp,outer_normal);
 %no-reflecting bc left
 bp = [l,0];
 outer_normal =[-1,0];
@@ -65,7 +66,7 @@ ps.add_bc('nrc',bp,outer_normal);
 %no-reflecting bc top
 bp =  [0,h2];
 outer_normal =[0,1];
-ps.add_bc('nrc',bp,outer_normal);
+% ps.add_bc('nrc',bp,outer_normal);
 
 
 %% -----------------------------------------------------

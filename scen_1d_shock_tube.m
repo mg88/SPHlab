@@ -14,7 +14,7 @@ ps.set_kernel('Gauss');
 
 ps.scheme     = 'm';
 ps.h_const    = false;
-ps.compOmegaj = true;
+ps.compOmegaj = false;
 ps.normalizeOmega = false;
 
 %IO
@@ -67,17 +67,17 @@ ps.Omega = [-0.2, 1.4];
 
 
 %% test2
-ps.dt  = 1e-4;
+% ps.dt  = 1e-4;
 ps.EOS = 'IdealGas14';
 Gamma  = 1.4;
-
-ps.art_diss_para.alpha_mass      = 0.3;%0.3;
-ps.art_diss_para.beta_mass       = 0;
-ps.art_diss_para.alpha_viscosity = 1;
-ps.art_diss_para.beta_viscosity  = 2;
-ps.art_diss_para.alpha_energy    = 0.3;%0.5;
-ps.art_diss_para.beta_energy     = 0;
-
+% 
+% ps.art_diss_para.alpha_mass      = 0.3;%0.3;
+% ps.art_diss_para.beta_mass       = 0;
+% ps.art_diss_para.alpha_viscosity = 1;
+% ps.art_diss_para.beta_viscosity  = 2;
+% ps.art_diss_para.alpha_energy    = 0.3;%0.5;
+% ps.art_diss_para.beta_energy     = 0;
+% 
 
 xl = 0;
 x0 = 0.5;
