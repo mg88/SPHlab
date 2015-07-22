@@ -5,7 +5,7 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 30000; %40000
+ps.Ntot    = 5000; %40000
 ps.equalmass = false;
 
 ps.dtfactor = 0.5;
@@ -81,11 +81,11 @@ bp = [0,omega_geo_cut(2,1)]; %bottom
 outer_normal = [0,-1];
 ps.add_bc('nrc',bp,outer_normal);
 
-%% use symmetry 
-% omega_geo_cut(2,1)=0;
-% bp = [0,omega_geo_cut(2,1)]; %bottom
-% ps.add_bc('noflow',bp,outer_normal);
-% ps.Omega(2,1)= -0.05;
+% %% use symmetry 
+omega_geo_cut(2,1)=0;
+bp = [0,omega_geo_cut(2,1)]; %bottom
+ps.add_bc('noflow',bp,outer_normal);
+ps.Omega(2,1)= -0.05;
 
 
 

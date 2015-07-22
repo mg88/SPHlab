@@ -5,7 +5,7 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 10000; %40000 %1600
+ps.Ntot    = 1600; %40000 %1600
 ps.equalmass = false;
 
 % ps.dtfactor = 0.3;
@@ -19,7 +19,7 @@ ps.compOmegaj  = true;
 ps.h_const  = false;
 
 % IO
-% ps.plot_dt = 1e-8;   
+ps.plot_dt = 1e-8;   
 ps.save_as_movie = false;
 ps.plot_quantity = 'x';%vpd';
 ps.plot_style.p = 'patches';
@@ -59,7 +59,7 @@ omega_geo_cut = [0, 3e-3;     %x
 % set BC
 bp = [0,omega_geo_cut(2,1)]; %bottom
 outer_normal = [0,-1];
-ps.add_bc('nrm',bp,outer_normal);
+ps.add_bc('nrc',bp,outer_normal);
 bp = [0,omega_geo_cut(2,2)]; % top
 outer_normal = [0,1];
 ps.add_bc('nrc',bp,outer_normal);

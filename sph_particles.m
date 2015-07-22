@@ -454,8 +454,84 @@ classdef sph_particles < handle
                obj.Nc = [];  %set cell-division-structure to obsolete
                disp(['create new cell-structure (max(h)= ',num2str( max(obj.hj))]);
                initial_search_neighbours(obj);
-           else
+           else                           
                update_neighbours(obj);
+%                update_neighbours_alt (obj)
+
+            %%------------------- 
+            checkdata=false;
+            if checkdata
+                %check data
+                a = obj.pij;
+                A = obj.AedgesXj;
+                c1 = obj.cell_of_j;
+%                 o1 = obj.obsolete_k_pij;
+                %remove self-connections
+                a = a(a(:,1)~=a(:,2),:);
+                %reference
+                initial_search_neighbours(obj);
+                b = obj.pij;
+                B = obj.AedgesXj;
+                c2 = obj.cell_of_j;
+                o2 = obj.obsolete_k_pij;
+
+                %sort the arrays in a way that they are comparable
+                a=sort(a,2);
+                b=sort(b,2);
+                [~,Ia]=sort(a(:,2),1);
+                a=a(Ia,:);
+                [~,Ia]=sort(a(:,1),1);
+                asort=a(Ia,:);
+                [~,Ib]=sort(b(:,2),1);
+                b=b(Ib,:);
+                [~,Ib]=sort(b(:,1),1);
+                bsort=b(Ib,:);
+
+                %
+                n1=size(A);
+                n2=size(B);
+                A(max(n1(1),n2(1))+1,max(n1(2),n2(2))+1)=1;
+                B(max(n1(1),n2(1))+1,max(n1(2),n2(2))+1)=1;
+                
+                if size(asort,1) ~= size(bsort,1)
+                   for i=1:size(asort,1)
+                       if (asort(i,1) ~= bsort(i,1)) || (asort(i,2) ~= bsort(i,2))
+                       %   obj.IO.plot_data(obj);
+                           hold on;
+                           jj1=asort(i,1);
+                           jj2=asort(i,2);
+                           plot(obj.Xj(jj1,1),obj.Xj(jj1,2),'xg');
+                           plot(obj.Xj(jj2,1),obj.Xj(jj2,2),'xr');
+                           keyboard
+                       end
+                   end     
+                   keyboard
+                elseif any(any(asort-bsort))
+                   for i=1:size(asort,1)
+                       if (asort(i,1) ~= bsort(i,1)) || (asort(i,2) ~= bsort(i,2))
+                          obj.IO.plot_data(obj);
+                           hold on;
+                           jj1=asort(i,1);
+                           jj2=asort(i,2);
+                           plot(obj.Xj(jj1,1),obj.Xj(jj1,2),'xg');
+                           plot(obj.Xj(jj2,1),obj.Xj(jj2,2),'xr');
+                           keyboard
+                       end
+                   end
+                   keyboard
+                elseif any(A-B)
+                    warning('something wrong with AedgesXj');
+                    keyboard
+                elseif any(c1-c2)
+                    keyboard
+%                 elseif any(o1-o2)
+%                     keyboard
+                else
+                    disp('good')
+                end
+            end
+            %%------------------- 
+
            end           
         end        
         %%
@@ -645,8 +721,11 @@ classdef sph_particles < handle
             obj.obsolete_k_pij = [];
         end    
         %%    
-        function update_neighbours (obj) %but a bit faster
-                                                
+        function update_neighbours (obj) 
+            % updated nearest neighbours search - espacially for the
+            % capabilities of matlab
+            
+            
             %cell-structure:
             cell_of_j_new = cell_structure(obj,obj.Xj);
             handleParticlesOnBoundary(obj);
@@ -669,7 +748,7 @@ classdef sph_particles < handle
             %changed completly), all particles have to be computed
             %individually (usally, only the ghost particle will jump in the
             %structure           
-            cell_shift_of_j = cell_of_j_new - obj.cell_of_j;            
+            cell_shift_of_j = cell_of_j_new - obj.cell_of_j;
             %% define possible cellshifts
             %  inf: obsolete particle
             % -inf: new particle            
@@ -677,92 +756,50 @@ classdef sph_particles < handle
             % (do nothing for particeles who not shifted)
             % rest: moved position completly (e.g. ghost particle)
             %       use a non directed update search
+            
             if obj.dim == 1
-                Ashift = [-1,1,inf,-inf]; 
+                Ashift = [-1,1]; 
             else
                 Ashift = [-1,1,...
                        -obj.Nc(1)-1,-obj.Nc(1),-obj.Nc(1)+1,...
-                        obj.Nc(1)-1, obj.Nc(1), obj.Nc(1)+1,...
-                        inf,-inf];
-            end
-           % j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0
+                        obj.Nc(1)-1, obj.Nc(1), obj.Nc(1)+1];
+            end            
 
-             
-
-           for ishift = 1:(length(Ashift)+1) %loop over all possible shifts   
+           for shift = Ashift %loop over all possible shifts   
                
-               
-               %what particles shifted in that (ishift) direction?
-               if ishift <= length(Ashift)
-                    shift = Ashift(ishift);
-                    j_shifted = find(cell_shift_of_j==shift);
-                    j_jump = false;
-               else %all others (search in the whole neigbhorhood)
-                    j_shifted = find(cell_shift_of_j); 
-                    shift = 0;
-                    j_jump = true;
-               end
-                
-               if j_jump && any(j_shifted)
-                   %set all ghost cells to infinity ->to look at all neighbours
-                   %since this is the very looprun, the regular behavioured
-                   %ghost particles are not considered here.
-                   keyboard
-                   cell_shift_of_j(obj.Ighost)=inf; 
-                   warning('take extra care here');
-                   %espacially for non ghost cells, this is not a good
-                   %sign
-%                    keyboard
-               end
-
-                   
-                   
+                j_shifted = find(cell_shift_of_j==shift);                                                      
                 % data structure for new/obsolete connections:
                 pij_new  = [];
                 pij_obs  = [];
                 for j = j_shifted'    %% loop over all particels with the same shift
                                         
-                    %cell_shift = +-inf: look at all sourounding cells
-                    %cell_shift = else: look only in the cell inthe same
                     %direction
                     cellshift = lookup_cellshift(obj,cell_shift_of_j(j)); %cells ahead in moving direction (for regular particles)
 
                     %% find new and obsolete particles:
                     %find obsolete points 
-                    if (shift~=-inf) 
-                        if ~j_jump %normal particles
-                            % (all particels in cells which are no
-                            %neighbours any more - right now, one behind ...|X|j|o|o|...
-                            cells_to_look_at = obj.cell_of_j(j) - cellshift;
-                        else %remove all old connectivities, cellshift are all sourinding cells
-                            cells_to_look_at = obj.cell_of_j(j) + cellshift; %
-                        end
-                        i_in_obs_neighb_cell = find(double(ismember(obj.cell_of_j,cells_to_look_at))); 
-                        
-                        nCon_obs = size(i_in_obs_neighb_cell,1);
-                        pij_obs(end+(1:nCon_obs),:) = [j*ones(nCon_obs,1),i_in_obs_neighb_cell];             
-                    end
 
-                    % move j to new cell (each particel at one time for
+                    % (all particels in cells which are no
+                        %neighbours any more - right now, one behind ...|X|j|o|o|...
+                    cells_to_look_at = obj.cell_of_j(j) - cellshift;
+
+                    i_in_obs_neighb_cell = find(double(ismember(obj.cell_of_j,cells_to_look_at))); 
+                        
+                    nCon_obs = size(i_in_obs_neighb_cell,1);
+                    pij_obs(end+(1:nCon_obs),:) = [j*ones(nCon_obs,1),i_in_obs_neighb_cell];             
+
+                    %% move j to new cell (each particel at one time for
                     % consistency)     % ...|o|j|o|o|... ->  ...|o|o|j|o|...                
                     % (and that I search in the right cells in the next step)
                     obj.cell_of_j(j) = cell_of_j_new(j);               
 
-                    if (shift~=inf)
-                        %find new points in cells ahead ...|o|o|j|X|... (or
-                        %in the whole neihborhood (j_jump-particles)
-                        cells_to_look_at = obj.cell_of_j(j) + cellshift;
-                        i_in_new_neighb_cell = find(ismember(obj.cell_of_j,cells_to_look_at));
-                        if j_jump
-                            % in case of a jump particle, remove the
-                            % selfconnection (not necessary for real particle
-                            % since I look only in neigbouring cells)
-                            i_in_new_neighb_cell=...
-                                i_in_new_neighb_cell(i_in_new_neighb_cell~=j);
-                        end
-                        nCon_new = size(i_in_new_neighb_cell,1);  
-                        pij_new(end+(1:nCon_new),:) = [j*ones(nCon_new,1),i_in_new_neighb_cell]; 
-                    end
+                    %% find new points in cells ahead ...|o|o|j|X|... (or
+                    %in the whole neihborhood (j_jump-particles)
+                    cells_to_look_at = obj.cell_of_j(j) + cellshift;
+                    i_in_new_neighb_cell = find(ismember(obj.cell_of_j,cells_to_look_at));
+
+                    nCon_new = size(i_in_new_neighb_cell,1);  
+                    pij_new(end+(1:nCon_new),:) = [j*ones(nCon_new,1),i_in_new_neighb_cell];                     
                 end   
                 
                 %remove cellshift data out of array (in the end, we will
@@ -775,21 +812,18 @@ classdef sph_particles < handle
                 if isempty(pij_new)
                     nCon_new = 0;
                 else
-                    if ~j_jump 
-                        pij_new  = pij_new(~ismember(pij_new(:,2),j_shifted),:);                    
-                    end
+                    pij_new  = pij_new(~ismember(pij_new(:,2),j_shifted),:);                                        
                     nCon_new = size(pij_new,1);
                 end
 
                 if isempty(pij_obs)
                     nCon_obs = 0;
                 else
-                    if ~j_jump
-                        pij_obs  = pij_obs(~ismember(pij_obs(:,2),j_shifted),:);                    
-                    end
+                    pij_obs  = pij_obs(~ismember(pij_obs(:,2),j_shifted),:);                    
+
                     nCon_obs = size(pij_obs,1);
              
-                    temp = zeros (obj.N,2);
+                    temp = zeros (size(obj.Xj,1),2);
                     temp(pij_obs(:,1),1)=1;
                     temp(pij_obs(:,2),2)=1;
                     %find first estimate of connections which are obsolete
@@ -798,9 +832,9 @@ classdef sph_particles < handle
                     %2: multiply with AedgesXj: all connections to the two particles
                     %3: prod: only if both particles are attached to that
                     %connection, remember it (in A)
-                    A=find(prod(temp'*abs(obj.AedgesXj),1))'; 
-                    %4: search, if these connection are an actuall obsolete
-                    %connectivity (there are cases, where not)
+                    A=find(prod(temp'*abs(obj.AedgesXj(1:size(temp,1),:)),1))'; 
+                    %4: search, if these connection are actual obsolete
+                    %connectivities (there are cases, where not)
                     [~,B,~]=intersect(sort(obj.pij(A,:),2),sort(pij_obs,2),'rows');
                     new_obsolete_k_pij=A(B);
                     
@@ -808,6 +842,7 @@ classdef sph_particles < handle
 
                 %% apply changes %%              
                 if nCon_obs > 0
+                    
                     % clear all obsolete connectivities of node j in the
                     % adjacency matrix nodes <-> edges
                     obj.AedgesXj(:,new_obsolete_k_pij) = 0;
@@ -842,102 +877,70 @@ classdef sph_particles < handle
                          obj.obsolete_k_pij = []; 
                     end
 
-                    %% update adjacency matrix   
-                                       
-                    % write new connectivities in adjacency matrix
-                    temp1 = sparse(pij_new(:,2),k_pij_new,-1);
-                    temp2 = sparse(pij_new(:,1),k_pij_new,1);
-                    temp1(size(obj.AedgesXj,1),size(obj.AedgesXj,2))=0; %not optimal...
-                    temp2(size(obj.AedgesXj,1),size(obj.AedgesXj,2))=0; %not optimal...
+                    %% update adjacency matrix  
+                    %create temporary matrices and take care, that they
+                    %have the same size as AedgesXj
+                    if any([max(pij_new(:,2)),max(k_pij_new)] < size(obj.AedgesXj) )
+                        [x1,x2]=size(obj.AedgesXj);                        
+                        x3=0;
+                    else
+                        x1=[]; x2=[];  x3=[];
+                    end                    
+                    temp1 = sparse([pij_new(:,2);x1],[k_pij_new;x2],[-1*ones(nCon_new,1);x3]);                    
+                    if any([max(pij_new(:,1)),max(k_pij_new)] < size(obj.AedgesXj) )
+                        [x1,x2]=size(obj.AedgesXj);                        
+                        x3=0;
+                    else
+                       x1=[]; x2=[];  x3=[];
+                    end 
+                    temp2 = sparse([pij_new(:,1);x1],[k_pij_new;x2],[1*ones(nCon_new,1);x3]);
 
+                    % write new connectivities in adjacency matrix
                     obj.AedgesXj = obj.AedgesXj + temp1+temp2; %ingoing  
                 end
-            end 
-                            
-            % remove the obsolete ghost particles (which are =inf) in cell_of_j;
-            if np_change < 0               
-               obj.cell_of_j = obj.cell_of_j(1:end-(-np_change));
-               %and shrink connectivity matrix          
-               obj.AedgesXj(end-(-np_change)+1:end,:)=[];  
-            end
-            
-            
-            %%------------------- 
-            checkdata=true;
-            if checkdata
-                %check data
-                a = obj.pij;
-                %remove self-connections
-                a = a(a(:,1)~=a(:,2),:);
-                %reference
-                initial_search_neighbours(obj);
-                b = obj.pij;
+           end 
 
-                %sort the arrays in a way that they are comparable
-                a=sort(a,2);
-                b=sort(b,2);
-                [~,Ia]=sort(a(:,2),1);
-                a=a(Ia,:);
-                [~,Ia]=sort(a(:,1),1);
-                asort=a(Ia,:);
-                [~,Ib]=sort(b(:,2),1);
-                b=b(Ib,:);
-                [~,Ib]=sort(b(:,1),1);
-                bsort=b(Ib,:);
-
-                if size(asort,1) ~= size(bsort,1)
-                   for i=1:size(asort,1)
-                       if (asort(i,1) ~= bsort(i,1)) || (asort(i,2) ~= bsort(i,2))
-                       %   obj.IO.plot_data(obj);
-                           hold on;
-                           jj1=asort(i,1);
-                           jj2=asort(i,2);
-                           plot(obj.Xj(jj1,1),obj.Xj(jj1,2),'xg');
-                           plot(obj.Xj(jj2,1),obj.Xj(jj2,2),'xr');
-                           keyboard
-                       end
-                   end            
-
-                elseif any(any(asort-bsort))
-                   for i=1:size(asort,1)
-                       if (asort(i,1) ~= bsort(i,1)) || (asort(i,2) ~= bsort(i,2))
-                          obj.IO.plot_data(obj);
-                           hold on;
-                           jj1=asort(i,1);
-                           jj2=asort(i,2);
-                           plot(obj.Xj(jj1,1),obj.Xj(jj1,2),'xg');
-                           plot(obj.Xj(jj2,1),obj.Xj(jj2,2),'xr');
-                           keyboard
-                       end
-                   end
-                    keyboard
-                else
-                    disp('good')
-                end
-            end
-            
+           % take care about the other particles (e.g. ghost particles)           
+           if any(cell_shift_of_j)
+               update_neighbours_alt(obj,cell_of_j_new,cell_shift_of_j,np_change);
+           end
+                         
         end                        
         %%  
-        function update_neighbours2 (obj) 
- 
-            %cell-structre:
-            cell_of_j_new = cell_structure(obj,obj.Xj);
-            handleParticlesOnBoundary(obj);
-
-            %%
-            np_change = size(cell_of_j_new,1)-size(obj.cell_of_j,1); %
- 
-            % adjust vector sizes
-            if np_change > 0 %new particles
-                obj.cell_of_j = [obj.cell_of_j; inf*ones(np_change,1)];
-                %enlarge matrix in order to have as much rows as particles
-                obj.AedgesXj(obj.N,1) = 0;   
-            elseif np_change <0 %particles to remove
-                cell_of_j_new = [cell_of_j_new; inf*ones(-np_change,1)];
-            end
-            cell_shift_of_j = cell_of_j_new - obj.cell_of_j;            
+        function update_neighbours_alt (obj,cell_of_j_new,cell_shift_of_j,np_change) 
+            %robust but slow way to update the cell structure, can handle
+            %new and obsolete particles and jumping particles
+            % hence, this scheme will be used in some cases from
+            % update_neighbours
+            % obj: father object
+            % cell_of_j_new - what is the new cell of partcle j
+            % cell_shift_of_j -in which direction moved the particle
+            % np_change: amount of particles changed in the system
+            % (negative: there are now some obsolete particles; positve:
+            % new particles)
             
-            j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0                        
+            
+%            disp ('use alternative uNNS')
+            if nargin < 2
+                %cell-structre:
+                cell_of_j_new = cell_structure(obj,obj.Xj);
+                handleParticlesOnBoundary(obj);
+
+                %%
+                np_change = size(cell_of_j_new,1)-size(obj.cell_of_j,1); %
+
+                % adjust vector sizes
+                if np_change > 0 %new particles
+                    obj.cell_of_j = [obj.cell_of_j; inf*ones(np_change,1)];
+                    %enlarge matrix in order to have as much rows as particles
+                    obj.AedgesXj(obj.N,1) = 0;   
+                elseif np_change <0 %particles to remove
+                    cell_of_j_new = [cell_of_j_new; inf*ones(-np_change,1)];
+                end
+                cell_shift_of_j = cell_of_j_new - obj.cell_of_j;        
+            end
+            
+            j_changes_cell = find(cell_shift_of_j); %alternative: a-b ~=0
             
             %% loop over all particels which have changed the cell
             for j = j_changes_cell'  
@@ -987,7 +990,7 @@ classdef sph_particles < handle
                     temp    = (i_in_obs_neighb_cell'*obj.AedgesXj);                    
                     pij_obs = (abs(temp)==4);
                     new_obsolete_k_pij = find(pij_obs');
-                  
+                    
                 else
                     new_obsolete_k_pij = [];
                 end
