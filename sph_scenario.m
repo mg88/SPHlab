@@ -104,7 +104,7 @@ classdef sph_scenario < handle
            obj.normalizeOmega = false;
            obj.compOmegaj= false;
            obj.dt        = [];
-           obj.dtfactor  = 0.5;
+           obj.dtfactor  = 0.2;
            obj.tpause    = inf;
 
            obj.beta = 0; %material dependent!
@@ -223,7 +223,7 @@ classdef sph_scenario < handle
             end     
             if nargin <7                
                 if strcmp(obj.EOS,'MG')
-                    error('Please define some Mie-Gruneisen parameter!');
+                    error('Please define some Mie-Gruneisen parameters!');
                 else
                     MG_Gamma = 0; %just set something
                     MG_S = 0;

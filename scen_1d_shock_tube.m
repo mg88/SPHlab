@@ -1,6 +1,6 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % 1d shock tube problem - paper of zisis2014
-close all; clear;
+%close all; clear;
 ps = sph_scenario();
 
 
@@ -14,7 +14,7 @@ ps.set_kernel('Gauss');
 
 ps.scheme     = 'm';
 ps.h_const    = false;
-ps.compOmegaj = false;
+ps.compOmegaj = true;
 ps.normalizeOmega = false;
 
 %IO
@@ -116,7 +116,7 @@ ps.exact_sol = exact_rarefactionShock(rhoL,pL,vL,rhoR,pR,vR,Gamma,x0);
 
 %% BC:
 ps.add_bc('noflow',xl,-1); %left
-ps.add_bc('noflow',xr,1); %right
+ps.add_bc('nrc',0.8,1); %right
 
 %% -----------------------------------------------------
 % generate particles

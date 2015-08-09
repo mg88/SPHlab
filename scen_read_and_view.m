@@ -3,10 +3,15 @@
 
 close all; clear; clc;
 
-input_name = 'impactMG_laminate2_300002';
+
+
+% input_name = 'impactMG_laminate2_300002';
 % input_name = 'impactISO_org2';
 % input_name = 'impactISO_cut2';
 % input_name = 'impactISO_bc2';
+input_name = 'impactMG_50000';
+%good versions:
+% input_name = 'impactMG_laminate2_500003';
 
 
 in_namedir = ['data/',input_name];
@@ -19,7 +24,7 @@ in_namedir = ['data/',input_name];
 ps1 = sph_scenario(in_namedir);
 ps1.plotconfig.figurename = input_name;
 ps1.plotconfig.latexplot = true;
-ps1.plot_quantity = 'x';
+ps1.plot_quantity = 'p';
 ps1.plot_style.x = 'ringcloud';
 ps1.plotconfig.figuresize = []; %empty: make default
 ps1.plotconfig.transpose = []; %empty: make default

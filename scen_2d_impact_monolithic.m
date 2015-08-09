@@ -5,11 +5,11 @@ close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 1600; %40000 %1600
+ps.Ntot    = 800; %40000 %1600
 ps.equalmass = false;
 
-% ps.dtfactor = 0.3;
-% ps.dt       = 1e-8;
+ps.dtfactor = 0.5;
+% ps.dt       = 1e-9;
 ps.tend     = 4e-7;%0.45e-6;   
 %  ps.tpause   = 0;
 ps.eta      = 1.2;     
@@ -21,7 +21,7 @@ ps.h_const  = false;
 % IO
 ps.plot_dt = 1e-8;   
 ps.save_as_movie = false;
-ps.plot_quantity = 'x';%vpd';
+ps.plot_quantity = 'p';%vpd';
 ps.plot_style.p = 'patches';
 % ps.plot_style.d = 'trisurf';
 ps.plot_style.e = 'patches';
@@ -101,12 +101,13 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 % generate particles
 ps.create_geometry;
 %dispdata(ps);
-
+size(ps.Xj)
 %% create particle class
 obj_particles = sph_particles(ps);
 %% start simulation
+tttic = tic;
 start_simulation(obj_particles)
-
-if isempty(ps.plot_quantity)
-    obj_particles.IO.plot_data(obj_particles,'pve')
-end
+toc(tttic)
+% if isempty(ps.plot_quantity)
+%     obj_particles.IO.plot_data(obj_particles,'pve')
+% end

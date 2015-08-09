@@ -1,20 +1,20 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % one square with an a singularity
 
-close all; clear; clc;
+% close all; clear; clc;
 ps = sph_scenario();
 
 %% general parameter
 ps.Ntot    = 500;
 ps.dtfactor= 0.4;
 % ps.tpause  = 0;%(1:10)*2e-5;
-ps.tend    = 8e-4;    
+ps.tend    = 4e-4;    
 ps.eta     = 1.2;     
 
 %IO
 ps.plot_dt = 1e-6;   
 ps.save_as_movie = true;
-ps.movie_name = 'test_nrbc_square';
+ps.movie_name = 'test_nrbc_square2';
 
 ps.plot_quantity = 'vdp';
 ps.plot_style.p = 'trisurf';

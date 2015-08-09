@@ -12,7 +12,7 @@ ps.tend    = 0.4;
 ps.eta     = 1.2;     
 ps.set_kernel('Gauss');
 
-ps.scheme     = 'm';
+ps.scheme     = 'n';
 ps.h_const    = false;
 ps.compOmegaj = true;
 ps.normalizeOmega = false;

@@ -13,6 +13,9 @@ input_name2 = 'data/impactISO_bc';
 % input_name1 = 'data/square3_org';
 % input_name2 = 'data/square3_bc';
 
+
+
+
 %compare only every di-step
 di = 1;
 Tstart = 0.e-4;%0.68e-4;

@@ -1,21 +1,21 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % impact scenario
 
-close all; clear;
+% close all; clear;
 ps = sph_scenario();
 
 %% general parameter
-ps.Ntot    = 5000; %40000
+ps.Ntot    = 50000; %40000
 ps.equalmass = false;
 
-ps.dtfactor = 0.5;
+ps.dtfactor = 0.2;
 % ps.dt       = 2e-8;
-ps.tend     = 6e-5;   
+ps.tend     = 8e-5;   
 %  ps.tpause   = 0;
 ps.eta      = 1.2;     
 ps.set_kernel('M4');
 ps.scheme   = 'n';
-ps.compOmegaj  = false;
+ps.compOmegaj  = true;
 ps.h_const  = false;
 
 % IO
@@ -26,12 +26,12 @@ ps.plot_style.p = 'patches';
 % ps.plot_style.d = 'trisurf';
 %ps.fixaxes.p = [-0.5,0.5];
 %output
-ps.save_dt = 1e-8;
+ps.save_dt = 5e-9;
 ps.write_data = true;
-ps.output_name ='data/impactMG_laminate2_300002ISO';
+ps.output_name ='data/impactMG_laminate2_500004';
 ps.plotconfig.latexplot = false;
 %% material parameter
-ps.EOS     = 'ISO';
+ps.EOS     = 'MG';
 
 
 %general
@@ -40,7 +40,7 @@ ps.Omega = [-0.10,0.20;  %x
 
 %% plate
 Py= [-90e-3,90e-3];
-n_layer =3;
+n_layer =5;
 Px= [0, 20e-3];
 x=Px(1);
 dx=(Px(2)-Px(1))/n_layer;
@@ -82,11 +82,11 @@ outer_normal = [0,-1];
 ps.add_bc('nrc',bp,outer_normal);
 
 % %% use symmetry 
-omega_geo_cut(2,1)=0;
-bp = [0,omega_geo_cut(2,1)]; %bottom
-ps.add_bc('noflow',bp,outer_normal);
-ps.Omega(2,1)= -0.05;
-
+% omega_geo_cut(2,1)=0;
+% bp = [0,omega_geo_cut(2,1)]; %bottom
+% ps.add_bc('noflow',bp,outer_normal);
+% ps.Omega(2,1)= -0.05;
+% 
 
 
 %% protectile
@@ -107,6 +107,8 @@ ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 ps.create_geometry;
 %dispdata(ps);
 
+% find((ps.Xj(:,1)<-2e-3) .* (ps.Xj(:,1)>-2.2e-3) .* (abs(ps.Xj(:,2))<0.5e-3))
+% keyboard
 %% create particle class
 obj_particles = sph_particles(ps);
 %% start simulation

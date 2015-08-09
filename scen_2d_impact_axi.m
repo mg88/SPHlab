@@ -11,9 +11,9 @@ ps.equalmass = false;
 ps.dtfactor = 0.2;
 % ps.dt       = 2e-9;
 ps.tend     = 7e-5;   
-ps.tpause   = (1:1:10)*1e-7;
+% ps.tpause   = (1:1:10)*1e-7;
 ps.eta      = 1.2;     
-ps.set_kernel('M4');
+ps.set_kernel('M3');
 ps.scheme   = 'a';
 ps.compOmegaj  = false;
 ps.h_const  = true;
@@ -33,11 +33,19 @@ ps.write_data = false;
 ps.output_name ='data/impactISO_org3';
 ps.plotconfig.latexplot=false;
 
+
 %% material parameter
 ps.EOS     = 'ISO';
 e0 = 0;
 MG_Gamma = 2;
 MG_S     = 1.338;
+
+ps.art_diss_para.alpha_mass      = 0;
+ps.art_diss_para.beta_mass       = 0;
+ps.art_diss_para.alpha_viscosity = 0;
+ps.art_diss_para.beta_viscosity  = 0;
+ps.art_diss_para.alpha_energy    = 0;
+ps.art_diss_para.beta_energy     = 0;
 
 %general
 ps.Omega = [-0.1,0.15;  %x
@@ -59,7 +67,7 @@ outer_normal = [0,1];
 rho0 = 2785;   
 c0   = 5330; 
 v0 = [0,0];
-% ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
+ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
     
    
 
@@ -69,7 +77,7 @@ omega_geo = [-5e-3-2e-3, -2e-3;
 rho0 = 2785;
 c0 = 5330;
 v0 = [0.*c0,0];
-ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
+% ps.add_geometry(omega_geo, rho0, v0, c0, e0, MG_Gamma, MG_S)
 
 %% use symmetry 
 ps.Ntot = ps.Ntot/2;
@@ -78,7 +86,7 @@ for i = 1:(ps.iter_geo-1)
 end
 bp=[0,0];
 outer_normal = [0,-1];
-ps.add_bc('cut',bp,outer_normal);
+ps.add_bc('noflow',bp,outer_normal);
 ps.Omega(2,1)= -0.2;
 
 %% -----------------------------------------------------

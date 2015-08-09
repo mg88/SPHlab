@@ -47,6 +47,9 @@ classdef sph_IO < handle
         t_last_plot
         t_last_save
      
+        %data of (one) point (struct)
+        pointdata
+        
         %exact solution
         exact_sol
     end
@@ -100,9 +103,9 @@ classdef sph_IO < handle
           %%
           obj.t_last_plot = -inf;
           obj.t_last_save = -inf;
-            
-            
-            %for latex plots:
+          obj.pointdata=struct('t',[],'hj',[],'Omegaj',[],'rhoj',[],'pj',[],'vj',[],'ej',[],'drhoj_tot',[],'drhoj_diss',[]);  
+
+          %for latex plots:
             %----------------
            FontSize=15;
            obj.Sfont= struct('FontUnits','points',...
@@ -110,7 +113,6 @@ classdef sph_IO < handle
             'FontName','Times');
            obj.Sint = struct('interpreter','latex');
             %------------------
-            
         end
         
         %% %%% general functions
@@ -198,12 +200,19 @@ classdef sph_IO < handle
             if flag_conservation
                 save_conservation (obj,obj_particles);
             end
+            % save data from one special point
+            save_pointdata(obj,obj_particles)
 
+%             figure(4)
+%             plot(obj_particles.t,max(abs(obj_particles.vj)),'x')
+%             hold on;
+            
         end       
         %%
         function finalize (obj)
             
             %% close output
+            
             
             %% movie
             if obj.save_as_movie
@@ -213,10 +222,16 @@ classdef sph_IO < handle
             
             %% plot conservation variables
             plot_conservation(obj)
+            plot_pointdata(obj);
+            
 
+            
         end
         %%
         function save_conservation (obj,obj_p)
+            % config:
+            A=obj_p.Iin; %which particles shall be considered
+            
             %time
             obj.con_dt = [obj.con_dt;
                           obj_p.t];
@@ -224,12 +239,12 @@ classdef sph_IO < handle
             % conservation of mass
             massj = obj_p.rhoj(obj_p.Iin).*obj_p.Vj(obj_p.Iin);
             obj.con_mass = [obj.con_mass;...
-                            sum(massj)];
+                            sum(massj(A))];
                         
             %% conservation of momentum (particle inside)
             momj  = massj * ones(1,obj_p.dim) .* (obj_p.vj_half(obj_p.Iin,:));
             obj.con_momentum = [obj.con_momentum;...
-                                sum(momj,1)];
+                                sum(momj(A,:),1)];
                             
             %% absorbed momentum:                          
             nrm  = false;
@@ -282,9 +297,9 @@ classdef sph_IO < handle
             e_kin = 0.5 .* obj_p.mj(obj_p.Iin).* norm_vj_sq;
             e_pot = obj_p.mj(obj_p.Iin).*obj_p.ej_half(obj_p.Iin);
             obj.con_e_kin =[obj.con_e_kin;
-                            sum(e_kin)];
+                            sum(e_kin(A))];
             obj.con_e_pot =[obj.con_e_pot;
-                            sum(e_pot)];
+                            sum(e_pot(A))];
                         
             % energy dissipation on the boundary (absorbed energy)
             
@@ -346,6 +361,7 @@ classdef sph_IO < handle
                                      Ekin_nrc + Ekin_nrm + previous_kin];
             obj.con_e_pot_diss =[obj.con_e_pot_diss;
                                      Epot_nrc + Epot_nrm + previous_pot];
+
         end
         %%
         function plot_conservation (obj)
@@ -514,6 +530,61 @@ classdef sph_IO < handle
                         num2str(abs((etot(end)-etot(1))/etot(1))),' ##']);
             end
         end
+        %%
+        function save_pointdata(obj,obj_particles)
+             %save data of particle iparticle
+            iparticle=100;%272;%;251;
+            
+            if iparticle > obj_particles.N
+                return
+            end
+            obj.pointdata.t(end+1)= obj_particles.t;
+            if length(obj_particles.hj)>1
+                 obj.pointdata.hj(end+1)= obj_particles.hj(iparticle);                
+            else
+                 obj.pointdata.hj(end+1)= obj_particles.hj(1);                
+            end
+            if length(obj_particles.Omegaj)>1
+                 obj.pointdata.Omegaj(end+1)= obj_particles.Omegaj(iparticle);                
+            else
+                 obj.pointdata.Omegaj(end+1)= obj_particles.Omegaj(1);                
+            end
+            obj.pointdata.rhoj(end+1)= obj_particles.rhoj(iparticle);
+            obj.pointdata.pj(end+1)= obj_particles.pj(iparticle);
+            obj.pointdata.vj(end+1)= obj_particles.vj(iparticle);
+            obj.pointdata.drhoj_diss(end+1)= obj_particles.drhoj_diss(iparticle);
+            obj.pointdata.drhoj_tot(end+1)= obj_particles.drhoj_tot(iparticle);
+            obj.pointdata.ej(end+1)= obj_particles.ej(iparticle);           
+
+        end
+        %%         
+        function plot_pointdata(obj)
+           p = struct('pq',[]);
+            %--------------------
+           %config:
+           p(1).pq='vj';%'rhoj';
+%            p(2).pq='vj';
+        
+           marker='-';
+           %----------------------                
+           if isempty(obj.pointdata.t)                                
+                return               
+           end
+           np=size(p,2);
+           figure(3)
+             % plot pointdata
+            
+            for ip=1:np
+                subplot(1,np,ip)
+                hold on;
+                plot(obj.pointdata.t,obj.pointdata.(p(ip).pq),marker);            hold on;
+                xlabel('t'),ylabel(p(ip).pq);            
+            end
+            
+        end
+        
+        
+        
         %% super sampling
         function dat_eval = eval_ss (obj,obj_p, data_name)  %ToDo: also for 2d!         
             %define evaluation points for supersampling
@@ -610,7 +681,7 @@ classdef sph_IO < handle
             %trimesh(t2,x,y,z)
         end  
 
-        %%
+        %% main plotting function:
         function plot_data(obj,obj_p,A_quantities,flag_drawnow,flag_cla)
             %% some functions
             function p=plot_scatter(x,dat,mat,marker)
@@ -874,12 +945,16 @@ classdef sph_IO < handle
                elseif quantity == 'p'
                    dat_name = 'pj';
                    name = 'pressure';
-                   axisname = 'pressure $[Pa]$';
+                   axisname = 'p';%'pressure $[Pa]$';
                    limaxes = obj.fixaxes.p;
                    style   = obj.plot_style.p;
                elseif quantity == 'd'
                    name = 'density';
-                   dat_name = 'rhoj';
+                   if strcmp(obj_p.scheme,'a') 
+                        dat_name = 'rhoj_real'; %plot real density in the axis-symetric case
+                   else
+                       dat_name = 'rhoj';
+                   end
                    axisname = '$\rho$';
                    limaxes = obj.fixaxes.d;                   
                    style   = obj.plot_style.d;
@@ -889,10 +964,10 @@ classdef sph_IO < handle
                    axisname = '$\dot{\rho}$';
                    limaxes = obj.fixaxes.m;                   
                    style   = obj.plot_style.m;
-               elseif quantity == 'v'
+               elseif (quantity == 'v') || (quantity == 'u')
                    name = 'velocity';
                    dat_name = 'vj';
-                   axisname = '$v$';
+                   axisname = 'u';%'velocity $[m/s]$';
                    limaxes = obj.fixaxes.v;
                    style   = obj.plot_style.v;
                elseif quantity == 'f'
@@ -1041,14 +1116,9 @@ classdef sph_IO < handle
                         elseif strcmp (style,'patches')                            	
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
-                            if strcmp(dat_name,'rhoj') && strcmp(obj_p.scheme,'a')
-                                %scale density
-                                plot_patches(x(:,1),x(:,2),...
-                                    obj_p.(dat_name)./(2*pi*abs(x(:,2)))...
-                                    ,sizeOfCirlce,opacity);
-                            else %standard
-                                  plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
-                            end
+
+                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
+
                             if ~isempty(limaxes)
                                  caxis(limaxes)
                             end
@@ -1144,9 +1214,12 @@ classdef sph_IO < handle
                        rectangle('Position',[b(1), a(3), b(2)-b(1), a(4)-a(3)],...
                                  'EdgeColor',[0,1,0.5]);                   
                    elseif (strcmp (boun.type(1:3),'nrc') ...
-                           || strcmp (boun.type(1:3),'nrm'))...
+                           || strcmp (boun.type(1:3),'nrm')...
+                           || strcmp (boun.type(1:3),'nrp'))...
                            && obj_p.dim==1
                         plot([obj_p.Xj(boun.kb),obj_p.Xj(boun.kb)],a(3:4),'bx:');
+                   elseif strcmp(boun.type,'cut')
+                       % do nothing
                    else
                        error('No such boundary type to plot');
                    end                                         
