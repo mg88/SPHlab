@@ -2,7 +2,7 @@
 %two moving lines colliding 
 
 close all; clear; clc;
-ps = sph_scenario();
+ps = SPHlab_scenario();
 
 %% general parameter
 ps.Ntot    = 1000;
@@ -45,7 +45,7 @@ ps.create_geometry;
 dispdata(ps);
 
 %% create particle class
-obj_particles = sph_particles(ps);
+obj_particles = SPHlab_particles(ps);
 %obj_particles.showInitial()
 %% start simulation
 start_simulation(obj_particles)

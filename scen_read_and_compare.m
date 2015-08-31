@@ -3,23 +3,20 @@
 
 % close all; clear; clc;
 
-%input_name = 'data/impact';
-% input_name1 = 'data/impactISO_org';
-% input_name2 = 'data/impactMG_laminate2_nobc';
-
-input_name1 = 'data/impactISO_org';
-input_name2 = 'data/impactISO_bc';
-
-% input_name1 = 'data/square3_org';
-% input_name2 = 'data/square3_bc';
+% input names:
+input_name1 = 'impact_laminate_test';
+input_name2 = 'impact_laminate_test';
+%--------------------
 
 
+input_namedir1 = ['data/',input_name1];
+input_namedir2 = ['data/',input_name2];
 
 
 %compare only every di-step
 di = 1;
-Tstart = 0.e-4;%0.68e-4;
-Tend = 5.5e-5;
+Tstart = 0;%1.9e-5;%0.68e-4;
+Tend = 5.e-6;
 compare_position   = 0;
 plot_solutions     = 1;
 plot_difference    = 0;
@@ -27,34 +24,38 @@ l2error_evolution  = 0;
 boundary_evolution = 0;
 
 % zoom in:
-zoom_in = false;
-x_zoom = [0.001,0.03];
-r_zoom = 0.005;
+zoom_in = true;
+% x_zoom = [-0.5e-3,12e-3]; %co
+% r_zoom = 1.7e-3;
+x_zoom = [3e-3,0];
+r_zoom = 22e-3;
 
 % compare position
 extra_magnify = false;
-x_magnify = [0.01,0.03];%abs(x(Aistar(1)));
-r_magnify = 0.005;
+x_magnify = [-0.5e-3,11e-3];%abs(x(Aistar(1)));
+r_magnify = 1.5e-3;
             
 % compare solution (show side by side)
-plot_name  = 'p'; %what value shall I plot
+plot_name  = 'x'; %what value shall I plot
 plot_style = 'patches';
-limaxes    = 1e8 *[-8,8];
-movie_name = 'movies/impact_comp2.mp4';%'test'; %'movies/comp3.avi';  % empty means no video
+limaxes    = '';%1e7 *[-8,8];
+movie_name = '';%'movies/impact_comp2.mp4';%'test'; %'movies/comp3.avi';  % empty means no video
 
 var_name = 'pj'; %for evaluation
 Neval   = 2000;
 Nss = 1; %supersampling
-Omega_compare = [-10e-3,30e-3;     %x
-                 -100e-3,100e-3];%y 
+Omega_compare = [-5e-3,20e-3;     %x
+                 -20e-3,20e-3];%y 
              
 % boundary evolution: evaluation point:
-x_evolution = [0.01, 0.055];             
+x_evolution = [3e-3,8e-3];%[2.5e-3, 15e-3];             
     
 %% generate objects:
-ps1 = sph_scenario(input_name1);
-ps2 = sph_scenario(input_name2);
+ps1 = SPHlab_scenario(input_namedir1);
+ps2 = SPHlab_scenario(input_namedir2);
 %
+ps1.Omega = Omega_compare;
+ps2.Omega = Omega_compare;
 ps1.plotconfig.figuresize = []; %empty: make default
 ps1.plotconfig.transpose = []; %empty: make default
 ps1.plotconfig.latexplot = true; %empty: make default
@@ -73,26 +74,39 @@ ps1.fixaxes.p= limaxes;
 ps2.fixaxes.p= limaxes;
 
 %% create particle class
-obj_particles1 = sph_particles(ps1);
-obj_particles2 = sph_particles(ps2);
+obj_particles1 = SPHlab_particles(ps1);
+obj_particles2 = SPHlab_particles(ps2);
             
 %% evaluation grid:
-[x_eval,dx] = ps2.rectangle(Omega_compare,Neval);
+[x_eval,~] = ps2.rectangle(Omega_compare,Neval);
 Neval = size(x_eval,1); %real amount of evaluation points
 
 %% what are the timesteps to read (the hdf5-groupname)
-data = h5info([input_name1,'.h5'],'/');
+data = h5info([input_namedir1,'.h5'],'/');
+data2 = h5info([input_namedir2,'.h5'],'/');
 i=1;
 T=[];
 while(i<size(data.Groups,1));    
     T(i) =  str2double(data.Groups(i).Name(2:end));
     i=i+1;
 end
+i=1;
+T2=[];
+while(i<size(data2.Groups,1));    
+    T2(i) =  str2double(data2.Groups(i).Name(2:end));
+    i=i+1;
+end
 [~,I]=sort(T);
 I = I(1:di:size(I,2));
+[~,I2]=sort(T2);
+I2 = I2(1:di:size(I2,2));
+if size(T,2)~=size(T2,2)
+    warning('take care, date might be not defined on the same timestep')
+end
 
 % take only the time smaller Tend and greater than Tstart
 I=I(logical((T(I)>Tstart) .* (T(I)<Tend)));
+I2=I2(logical((T2(I2)>Tstart) .* (T2(I2)<Tend)));
 
 %% create figures
 % figure for position comparison  (in one plot)
@@ -125,7 +139,7 @@ end
 nisubplot = 1;
 njsubplot = 2*plot_solutions + plot_difference;
 if njsubplot >0
-    errfig = figure('Color',[1 1 1]);
+    errfig = figure;%('Color',[1 1 1]);
 end
 
 %% movie
@@ -139,7 +153,7 @@ if ~isempty(movie_name)
 end   
 
 %% start reading input
-nI = size(I,2);
+nI = min(size(I,2),size(I2,2));
 T  = zeros(nI,1);
 dat1_evolution = zeros(nI, 1);
 dat2_evolution = zeros(nI, 1);
@@ -150,10 +164,12 @@ for i=1:nI;
     iplot = 1;
     %read data
     group = data.Groups(I(i)).Name;   %(time)
+    group2 = data2.Groups(I2(i)).Name;   %(time)
+
     t = str2double(group(2:end));
     T(i)=t;
-    obj_particles1.IO.read_hdf5(obj_particles1,input_name1,group);
-    obj_particles2.IO.read_hdf5(obj_particles2,input_name2,group);
+    obj_particles1.IO.read_hdf5(obj_particles1,input_namedir1,group);
+    obj_particles2.IO.read_hdf5(obj_particles2,input_namedir2,group2);
 
     %compare the positions of the particles
     if compare_position
@@ -219,8 +235,8 @@ for i=1:nI;
 %            plot3([p1(1),p2(1)],[p1(2),p2(2)],[z,z],'kx:');
 %         end
 %         axis(a);
-        % ----------
-        
+%         % ----------
+%         
         if zoom_in
             xlim ([x_zoom(1)-r_zoom,x_zoom(1)+r_zoom]);
             ylim ([x_zoom(2)-r_zoom,x_zoom(2)+r_zoom]);
@@ -234,6 +250,7 @@ for i=1:nI;
     end
     
     if plot_difference
+        
         subplot(nisubplot,njsubplot,iplot); iplot=iplot+1;
         cla
         %2d
@@ -307,7 +324,7 @@ if boundary_evolution
     plot(T,dat1_evolution,'b-',...
          T,dat2_evolution,'r-');   
 %     title('evolution at point x');
-    h=legend(input_name1,input_name2);
+    h=legend(input_namedir1,input_namedir2);
     set(h,Sfont,Sint);
 
     h1=xlabel('$t$');

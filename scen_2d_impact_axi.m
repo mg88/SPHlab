@@ -1,8 +1,11 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % impact scenario
 
+warning('this version is not working right now!')
+keyboard
+
 close all; clear;
-ps = sph_scenario();
+ps = SPHlab_scenario();
 
 %% general parameter
 ps.Ntot    = 200; %40000
@@ -97,7 +100,7 @@ ps.create_geometry;
 %dispdata(ps);
 
 %% create particle class
-obj_particles = sph_particles(ps);
+obj_particles = SPHlab_particles(ps);
 %% start simulation
 start_simulation(obj_particles)
 

@@ -1,8 +1,8 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
-% 1d riemann problem
+% read a LimeSPH file
 
 close all; clear; clc;
-ps = sph_scenario('in-hvi');
+ps = SPHlab_scenario('in-hvi');
 
 ps.write_data = false;
 
@@ -35,7 +35,7 @@ ps.plot_quantity = 'p';
 ps.fixaxes.p = [-1,1];
 ps.Neval = 0;
 %% create particle class
-obj_particles = sph_particles(ps);
+obj_particles = SPHlab_particles(ps);
 
 obj_particles.IO.plot_data(obj_particles,'dpv');
 

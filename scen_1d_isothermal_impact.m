@@ -1,25 +1,26 @@
 % SPH for HVI  - Markus Ganser - TU/e - 2015
 % 1d shock tube problem - paper of zisis2014
 % close all; clear;
-ps = sph_scenario();
+ps = SPHlab_scenario();
 
 
 %% general parameter
-ps.Ntot    = 600;
+ps.Ntot    = 200;
 ps.equalmass = true;
 ps.tend    = 0.4;   
 % ps.tpause  = 0; 
+% ps.dtfactor = 0.01;
 ps.eta     = 1.2;     
 ps.set_kernel('Gauss');
 
-ps.scheme     = 'n';
+ps.scheme     = 'm';
 ps.h_const    = false;
 ps.compOmegaj = true;
 ps.normalizeOmega = false;
 
 %IO
 ps.plot_dt = 1e-2;  
-ps.save_as_movie = true;
+ps.save_as_movie = false;
 ps.plot_quantity = 'dpv';
 ps.fixaxes.d = [0.2,1.8];
 ps.fixaxes.v = [-0.1,1.2];
@@ -85,6 +86,8 @@ ps.create_geometry;
 % dispdata(ps);
 
 %% create particle class
-obj_particles = sph_particles(ps);
+obj_particles = SPHlab_particles(ps);
 %% start simulation
 start_simulation(obj_particles)
+
+% exact_shocktube

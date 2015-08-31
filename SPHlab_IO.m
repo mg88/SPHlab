@@ -1,5 +1,38 @@
-classdef sph_IO < handle
-    %IO classes for the sph-simulation tool
+% SPH for HVI  - Markus Ganser - TU/e - 2015
+classdef SPHlab_IO < handle
+    % IO classes for the sph-simulation tool
+    % most configuration are done in SPHlab_scenario or manually, see
+    % constructor for the variables/adjustments handed over 
+    
+    % - initialize | do | finalize
+    %   main functions for plotting and record of conservation properties
+    % - save | plot_conservation
+    %   record conservation of mass/momentum/energy, plot only if changes
+    %   are present
+    % - plot | save_pointdata
+    %   record the state variables of one particle - to be adjusted in the
+    %   function itself
+    % - dat_eval
+    %   evaluates on an arbitrary point with the SPH discretization schemes
+    %   supersampling possible (but not necessary)
+    % - plot_trisurf
+    %   seperated function to be applicable from the outside
+    % - plot_data
+    %   main plotting routine with different configurations (see
+    %   SPHlab_scenario constructor for full information)
+    %   with plot_data("obj_p","var"), a plot with the variable "var" (e.g. p
+    %   for pressure) based on the data "obj_p" (the particle class) can be
+    %   plottet
+    % - draw_geometry:
+    %   adds additional information to the plot (e.g. the domain,
+    %   cellstructure,..), see flags in this function
+    % - draw_points
+    %   mark points with a cross, Ind denotes the Indexarray of the
+    %   particles to be plottet
+    % - savefigure
+    %   save a figure in a eps/png/... file
+    % - read | write_hdf5
+    %   read and writes hdf5 files, compatible with LimeSPH
     
     properties
         % evaluation points
@@ -57,7 +90,7 @@ classdef sph_IO < handle
     methods
         
         %% %%% constructor
-        function obj = sph_IO(obj_scen)
+        function obj = SPHlab_IO(obj_scen)
             if nargin == 1 %else, use only the functions
               %% some IO properties
               obj.save_as_movie = obj_scen.save_as_movie;
@@ -72,6 +105,7 @@ classdef sph_IO < handle
               obj.plotconfig    = obj_scen.plotconfig;
               obj.fixaxes       = obj_scen.fixaxes;
               %% gridpoints to evaluate
+              
               if obj_scen.Neval > 0
                   [obj.x_eval,obj.dx_eval] = obj_scen.rectangle(obj_scen.Omega,obj_scen.Neval);
               else
@@ -103,11 +137,11 @@ classdef sph_IO < handle
           %%
           obj.t_last_plot = -inf;
           obj.t_last_save = -inf;
-          obj.pointdata=struct('t',[],'hj',[],'Omegaj',[],'rhoj',[],'pj',[],'vj',[],'ej',[],'drhoj_tot',[],'drhoj_diss',[]);  
+          obj.pointdata=struct('t',[],'hj',[],'Omegaj',[],'rhoj',[],'pj',[],'vj',[],'ej',[],'drhoj_tot',[],'drhoj_diss',[],'maxp',[]);  
 
           %for latex plots:
             %----------------
-           FontSize=15;
+           FontSize=20;%15;
            obj.Sfont= struct('FontUnits','points',...
             'FontSize',FontSize,...
             'FontName','Times');
@@ -166,16 +200,20 @@ classdef sph_IO < handle
 
         end
         %%
-        function do (obj, obj_particles,force,flag_conservation)
+        function do (obj, obj_particles,force_do,flag_conservation)
+            % plot and save data from obj_particles
+            % force_do: plot and save data independent of the configuration 
+            % flag_conservation: save conservation of mass/momentum/energy                        
+            
             if nargin <3
-                force = false;
+                force_do = false;
             end
             if nargin < 4
                 flag_conservation = true;
             end
             %% plotting
-            if force||(((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
-                    && ~isempty(obj.plot_quantity))
+            if (force_do||(((obj_particles.t-obj.t_last_plot) > obj.plot_dt) ...
+                    && ~isempty(obj.plot_quantity)))
                 plot_data (obj,obj_particles);
                 if obj.save_as_movie
                     currFrame = getframe(obj.mfigure);
@@ -188,11 +226,11 @@ classdef sph_IO < handle
             end  
             
             %% write output
-            if (force||((obj_particles.t-obj.t_last_save) > obj.plot_dt)) ...
+            if (force_do||((obj_particles.t-obj.t_last_save) > obj.save_dt)) ...
                             && obj.write_data
                  write_hdf5(obj,obj_particles)
-                %name = ['data/out',num2str(obj_particles.dt),'.mat'];               
-                % save(name, 'obj_particles');   
+                    %name = ['data/out',num2str(obj_particles.dt),'.mat'];               
+                    % save(name, 'obj_particles');   
                  obj.t_last_save = obj_particles.t;
             end
             
@@ -203,10 +241,6 @@ classdef sph_IO < handle
             % save data from one special point
             save_pointdata(obj,obj_particles)
 
-%             figure(4)
-%             plot(obj_particles.t,max(abs(obj_particles.vj)),'x')
-%             hold on;
-            
         end       
         %%
         function finalize (obj)
@@ -221,8 +255,9 @@ classdef sph_IO < handle
             end   
             
             %% plot conservation variables
-            plot_conservation(obj)
-            plot_pointdata(obj);
+%             disp ('some IO plots turned off...');
+           plot_conservation(obj)
+           plot_pointdata(obj);
             
 
             
@@ -533,7 +568,7 @@ classdef sph_IO < handle
         %%
         function save_pointdata(obj,obj_particles)
              %save data of particle iparticle
-            iparticle=100;%272;%;251;
+            iparticle=289;%100;%272;%;251;
             
             if iparticle > obj_particles.N
                 return
@@ -555,14 +590,14 @@ classdef sph_IO < handle
             obj.pointdata.drhoj_diss(end+1)= obj_particles.drhoj_diss(iparticle);
             obj.pointdata.drhoj_tot(end+1)= obj_particles.drhoj_tot(iparticle);
             obj.pointdata.ej(end+1)= obj_particles.ej(iparticle);           
-
+            obj.pointdata.maxp(end+1)=max(abs(obj_particles.pj));
         end
         %%         
         function plot_pointdata(obj)
            p = struct('pq',[]);
             %--------------------
            %config:
-           p(1).pq='vj';%'rhoj';
+           p(1).pq='pj';%'rhoj';
 %            p(2).pq='vj';
         
            marker='-';
@@ -571,7 +606,7 @@ classdef sph_IO < handle
                 return               
            end
            np=size(p,2);
-           figure(3)
+           figure(30)
              % plot pointdata
             
             for ip=1:np
@@ -580,11 +615,10 @@ classdef sph_IO < handle
                 plot(obj.pointdata.t,obj.pointdata.(p(ip).pq),marker);            hold on;
                 xlabel('t'),ylabel(p(ip).pq);            
             end
-            
-        end
-        
-        
-        
+%            figure(31)
+%            plot(obj.pointdata.t,obj.pointdata.maxp,'-b');
+%            hold on;
+        end                       
         %% super sampling
         function dat_eval = eval_ss (obj,obj_p, data_name)  %ToDo: also for 2d!         
             %define evaluation points for supersampling
@@ -685,7 +719,8 @@ classdef sph_IO < handle
         function plot_data(obj,obj_p,A_quantities,flag_drawnow,flag_cla)
             %% some functions
             function p=plot_scatter(x,dat,mat,marker)
-               colo='gbkrmcy';
+%                colo='gkbkbrmcy';
+               colo='kbrbrb';
                %each material gets his own color
                
                for m = 1:size(mat,1)
@@ -865,15 +900,18 @@ classdef sph_IO < handle
                            rectangle('Position',[y0-len,xleft,2*len,xright-xleft],'LineStyle',':')
                            plot([y0,y0],[xleft;xright],'b');
                        end
-                       
+                       %normalize
                        dat1= normal(ky)*dat*len/datmax;
-
+                       %plot only non-zero values (espacially when no
+                       %particle belongs to an Nc-cell
+                       xxx=xleft:dx:xright;
+                       I=dat1~=0;
                        %plot data
                        if kx==1 %to the top/bottom
-                            plot(xleft:dx:xright,y0+dat1','rx')
+                            plot(xxx(I),y0+dat1(I)','rx')
                             %text(xright,y0,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
                        else %to the right/left
-                            plot(y0+dat1',xleft:dx:xright,'rx')
+                            plot(y0+dat1(I)',xxx(I),'rx')
                             %text(y0,xright+0.2*len,['max ',datnamedisp,'=',num2str(datmax,'%10.2e')])
 
                        end 
@@ -897,7 +935,7 @@ classdef sph_IO < handle
             
            if ~isempty(obj.mfigure)
                %do not change the focus (silent update of the figure)
-                set(groot,'CurrentFigure',obj.mfigure)               
+              %  set(groot,'CurrentFigure',obj.mfigure)               
            else
                figure('Color',[1 1 1]); %open new figure
            end
@@ -1150,13 +1188,13 @@ classdef sph_IO < handle
                             set(h,obj.Sfont,obj.Sint);
                         end
                    end
-                   h1=xlabel('$x_1$');
-                   h2=ylabel('$x_2$');
-                   
+%                    h1=xlabel('$x_1$');
+%                    h2=ylabel('$x_2$');
+%                    
                    if obj.plotconfig.latexplot
-                       set(h1,obj.Sfont,obj.Sint);
-                       set(h2,obj.Sfont,obj.Sint);
-                       % axis
+%                        set(h1,obj.Sfont,obj.Sint);
+%                        set(h2,obj.Sfont,obj.Sint);
+%                        % axis
                        set(gca,obj.Sfont);
                    end
                end 
@@ -1170,7 +1208,7 @@ classdef sph_IO < handle
                title_additive='';
                box on;
                %% plot additional info
-               draw_geometry(obj,obj_p,dat_name);
+                draw_geometry(obj,obj_p,dat_name);
                iplot = iplot+1;
                hold off;
            end
@@ -1245,7 +1283,7 @@ classdef sph_IO < handle
                    z=0;
                end
                
-               plot3( [x1(1) x2(1) x3(1) x4(1) x1(1)], [x1(2) x2(2) x3(2) x4(2) x1(2)], [z z z z z] )
+               plot3( [x1(1) x2(1) x3(1) x4(1) x1(1)], [x1(2) x2(2) x3(2) x4(2) x1(2)], [z z z z z],'k' )
                
                %boundary lines:
                a = axis; %now with Omega in consideration
@@ -1332,8 +1370,12 @@ classdef sph_IO < handle
         end
         
         
-        %% save figure as eps
+        %% save figure as eps (default)        
         function savefigure(obj,t,h,suffix)
+            % t: time;
+            % h: figurehandle;
+            % suffix: format to save
+            
             if nargin <2
                tstring='';
             else
@@ -1364,10 +1406,14 @@ classdef sph_IO < handle
             end
         end
         
-        %% %%% In/out %%% %%
+        %% %%% Write / Read Data %%% %%
         %%
         function read_hdf5(~,obj_data,filename,group)
-  
+            % obj_data: where to write the data
+            % filename: what to read
+            % group: which group of the hdf5 file to read (related to time)
+            
+            
             function x=readVariable(x_name,filename,group)
                  x=h5read(filename,[group,'/',x_name]);            
             end
@@ -1415,10 +1461,10 @@ classdef sph_IO < handle
             % some extra information (only available from a simulation
             % output - and not necessary to create a scenario)
             
-            %Mie-Gruneisen parameter
-            if isprop(obj_data,'Gamma')
+            %Mie-Gruneisen parameter            
+            if isprop(obj_data,'MG_Gammaj')
                 obj_data.MG_Gammaj = readVariable('Gamma',filename,group);
-                obj_data.MG_Sj = readVariable('S',filename,group);
+                obj_data.MG_Sj = readVariable('S',filename,group);                
             end
             if isprop(obj_data,'hj')
                 % smoothing length
@@ -1454,6 +1500,8 @@ classdef sph_IO < handle
         end
         %%
         function write_hdf5(obj,obj_p)
+            %obj_p: particle class, source of data
+            
             filename = [obj.output_name,'.h5'];
             time = obj_p.t;
             function writeVariable(filename,time,name,data)

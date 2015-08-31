@@ -1,6 +1,19 @@
-classdef sph_scenario < handle
-    % SPH for HVI  - Markus Ganser - TU/e - 2015
-    % scenario class - with geometry functions
+% SPH for HVI  - Markus Ganser - TU/e - 2015
+classdef SPHlab_scenario < handle
+    % This class defines basically the setup of a simulation
+    %   - geometry - provides function to generate the geometry
+    %   - defines initial state of the particles
+    %   - defines plotting adjustments
+    % See default values in the properties section.
+    % Main functions:
+    % - add_geometry
+    %   to define the geometry and its material property
+    % - add_bc
+    %   defines the boundary treatment
+    % - create_geometry
+    %   creates with add_(.) functions the initial point set and assign the
+    %   according values. Furthermoe, it takes care about the BC and if
+    %   necessary, it remove particles behind a boundary.
     
     properties
 
@@ -93,7 +106,7 @@ classdef sph_scenario < handle
     
     methods
         % Constructor
-        function obj = sph_scenario(filename)
+        function obj = SPHlab_scenario(filename)
            % some standard parameter 
            obj.kernel = 'M4'; 
            obj.kernel_cutoff = 2;
@@ -141,6 +154,7 @@ classdef sph_scenario < handle
            obj.Neval = 0;
            obj.Nss   = 1; %(no supersampling)
            
+           obj.save_dt = 0;
            obj.save_as_movie = false;
            obj.save_as_figure = false;
            obj.figure_format = 'eps';
@@ -174,7 +188,7 @@ classdef sph_scenario < handle
                else
                    %without (e.g. from LimeSPH)
                    group = '/0';
-                   obj_IO = sph_IO();                   
+                   obj_IO = SPHlab_IO();                   
                    obj_IO.read_hdf5(obj,filename,group);
                    warning('Make sure that all properties (like Omega) are defined!');
                end
@@ -255,7 +269,11 @@ classdef sph_scenario < handle
                 V_tot = 0;
                 %compute overall volume and mass
                 for i = 1:size(obj.geo,2)
-                   obj.geo(i).V = prod(diff(obj.geo(i).omega_geo'));
+                   if dim == 2 && size(obj.geo(i).omega_geo,1) == 1 %circle
+                     obj.geo(i).V = pi*obj.geo(i).omega_geo(1).^2;
+                   else %usual rectangular
+                     obj.geo(i).V = prod(diff(obj.geo(i).omega_geo'));
+                   end
                    V_tot = V_tot + obj.geo(i).V;
                    obj.geo(i).m = obj.geo(i).V * obj.geo(i).rho0;
                    m_tot = m_tot + obj.geo(i).m;
@@ -285,13 +303,21 @@ classdef sph_scenario < handle
                 if dim == 1
                     [x,Vparticle] = add_line(obj,obj.geo(i).omega_geo, obj.geo(i).N);                    
                 elseif dim == 2
-                    [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N);
+                    if size(obj.geo(i).omega_geo,1) == 1 % circle
+                        [x,Vparticle] = add_circle(obj,obj.geo(i).omega_geo, obj.geo(i).N);
+                    else %rectangle                        
+                        hexa=true; %make hexagonal particle distribution
+                        [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N,hexa);
+                    end
                 else
                     error('only dim=1,2 are supported');
                 end
                 
                 % cut on boundary, remove particles:
                 for boun = obj.bc
+                   if strcmp(boun.type,'nrd')
+                       continue,
+                   end
                    NN=size(x,1);
                    bp=boun.bp;
                    n =boun.outer_normal;
@@ -344,11 +370,18 @@ classdef sph_scenario < handle
         
         %% % some geometry functions % %%
         
-        %% generic function to create a rectangel in 1 and 2d
-        function [xy,dxy] = rectangle (~,omega_geo, N)
+        %% generic function to create a rectangel in 1d and 2d
+        function [xy,dxy] = rectangle (~,omega_geo, N,hexa)
+            if nargin<4
+                hexa=false;
+            end
            %generate N points in omega_geo
             len_xy  = diff(omega_geo');
             dim     = size(omega_geo,1);
+            if (dim == 0)
+                error('something wrong with the dimension')
+            end
+            
             
             len_particle   = (prod(len_xy)/N)^(1/dim);
             % amount of particle needed for an equidistant mesh
@@ -358,26 +391,52 @@ classdef sph_scenario < handle
             Np = prod(N_xy);
             dxy  = len_xy ./ N_xy;    %mesh size    
             % ||dx/2| X |dx| X |dx| X ... X |dx| X |dx/2|| 
+            
             for i = 1:dim
                 xtemp = (linspace(omega_geo(i,1)+dxy(i)/2,...
                                   omega_geo(i,2)-dxy(i)/2,...
                                   N_xy(i)))';                
                 if i == 2 %add second dimension
                     % create mesh
-                    [t1,t2]= ndgrid(xy,xtemp);               
-                    xx = reshape(t1,[1,Np]);
+                    [t1,t2]= ndgrid(xy,xtemp);
+                     
+                    if hexa
+                        %hexa:
+                        %move all a bit to the left
+                        t1=t1-0.25*dxy(1);
+                        %move every second row to the right
+                        I=1:2:size(t1,2);
+                        t1(:,I)=t1(:,I)+0.5*dxy(1);
+                    end
+                    xx = reshape(t1,[1,Np]); 
                     yy = reshape(t2,[1,Np]);
-                    xy=[xx',yy'];
+                    xy=[xx',yy'];                    
                 else
                     xy = xtemp;
                 end
             end
         end        
         %%
-        function [xy,Vparticle] = add_rectangle(obj,omega_geo, N) %for 1 and 2 dimension
-            [xy,dxy] = rectangle (obj,omega_geo, N);
+        function [xy,Vparticle] = add_rectangle(obj,omega_geo, N,hexa) %for 1 and 2 dimension
+            if nargin<4
+                hexa=false;
+            end
+            [xy,dxy] = rectangle (obj,omega_geo, N,hexa);
             % Volume of one particle
             Vparticle = prod(dxy);          
+        end
+        %%
+        function [xy,Vparticle] = add_circle(obj,omega_geo, N) %create circle in an easy way 
+            %first, create an rectangle
+            r=omega_geo(1);
+            c=omega_geo(2:3);
+            omega_rec = [c(1)-r,c(1)+r;c(2)-r,c(2)+r];
+            [xy,dxy] = rectangle (obj,omega_rec, N);
+            % Volume of one particle
+            Vparticle = prod(dxy);          
+            %remove particles outside of this circle
+            I=(sum((xy-(ones(size(xy,1),1)*c)).^2,2).^0.5)<r;
+            xy=xy(I,:);
         end
         %%           
         function [xy,Vparticle] = add_line(obj,omega_geo, N)
@@ -393,88 +452,7 @@ classdef sph_scenario < handle
             dim = size(obj.Xj,2);
             dx = max(obj.Vj)^(1/dim);
         end        
-        
-        
-        %% outdated
-        function I=add_line1d_old(obj,Astartpoint, Aendpoint)
-            first_ind=obj.iter;
-            for k=1:size(Astartpoint,1)
-                startpoint=Astartpoint(k,:);
-                endpoint=Aendpoint(k,:);
-                e_edge=endpoint-startpoint;
-                l_edge = norm(endpoint-startpoint);
-                e_edge = e_edge/l_edge;
-                x_par=startpoint;
-                while (norm(x_par-startpoint)<=l_edge)
-                    obj.Xj = [obj.Xj;x_par];  %add point                 
-                    obj.iter=obj.iter+1;
-                    x_par = x_par + e_edge*obj.dx;
-                end
-            end
-            second_ind = obj.iter-1;
-            I = (first_ind:second_ind)';
-        end        
-        %% outdated
-        function I=add_line2d(obj,Astartpoint, Aendpoint,layer)  
-            %place particles from startpoint to endpoint with distance dx
-            %and with #layer
-            first_ind=obj.iter;
-            for k=1:size(Astartpoint,1)
-                startpoint=Astartpoint(k,:);
-                endpoint=Aendpoint(k,:);
-                e_edge=endpoint-startpoint;
-                l_edge = norm(endpoint-startpoint);
-                e_edge = e_edge/l_edge;
-                x_par=startpoint;
-                while (norm(x_par-startpoint)<=l_edge)
-                    for shift = 1:layer;
-                        x_par_temp = x_par + (shift-1)*e_edge*[0,-1;0,1]*obj.dx;
-                        noise = obj.dx*obj.geo_noise*(2*rand(1,2)-1); %add some noise
-                        obj.Xj = [obj.Xj;x_par_temp+noise];  %add point
-                        obj.iter=obj.iter+1;
-                    end
-                    x_par = x_par + e_edge*obj.dx;
-                end
-            end
-            second_ind=obj.iter-1;
-            I=(first_ind:second_ind)';            
-        end
-        %% outdated
-        function I=add_rectangle2d(obj,Alowerleftcorner, Aupperrightcorner)
-            first_ind=obj.iter;
-            for k=1:size(Alowerleftcorner,1)
-                lowerleftcorner = Alowerleftcorner(k,:);
-                upperrightcorner= Aupperrightcorner(k,:);
-                x_par = lowerleftcorner;
-                while (x_par(2) <= upperrightcorner(2));
-                    while (x_par(1)<= upperrightcorner(1));
-                        noise = obj.dx*obj.geo_noise*(2*rand(1,2)-1);
-                        obj.Xj = [obj.Xj;x_par+noise];  %add point
-                        obj.iter=obj.iter+1;
-                        x_par(1)= x_par(1)+obj.dx;
-                    end
-                    x_par(1)= lowerleftcorner(1);
-                    x_par(2)= x_par(2)+obj.dx;
-                end  
-            end
-            second_ind=obj.iter-1;
-            I=(first_ind:second_ind)';
-        end
-        %% 
-        function addproperties(obj, I, Vp, rho0, v0,c0) %constant mass/Volume
-            m0 = Vp * rho0;  
-            obj.mj(I,1)    = m0;
-            obj.vj(I,:)    = ones(size(I,1),1)*v0;     
-            obj.c0j(I,1)   = c0;
-            obj.cj(I,1)    = c0;
-            obj.rho0j(I,1) = rho0;
-            obj.rhoj(I,1)  = rho0;
-            obj.Imaterial = [obj.Imaterial;...
-                             [I(1) I(end)] ];
-            obj.Iin   = [obj.Iin; I];
-
-        end       
-        %%
+                              
     end    
 end
 
