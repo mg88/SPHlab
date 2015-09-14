@@ -9,13 +9,13 @@ ps.Ntot    = 1000;
 ps.tend    = 0.1;
 
 ps.eta     = 1.2;     
-ps.scheme  = 'v';
+% ps.scheme  = 'v';
 
 %IO
 ps.plot_dt = 1e-2;   
-ps.save_as_movie = false;
-ps.plot_quantity = 'x';
-ps.fixaxes.p = [-1,1];
+% ps.save_as_movie = false;
+ps.plot_quantity = 'p';
+% ps.fixaxes.p = [-1,1];
 
 
 %% material parameter

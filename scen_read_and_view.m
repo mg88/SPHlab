@@ -5,7 +5,14 @@ close all; clear; clc;
 
 
 %% input name:
-input_name = 'impact_laminate_test';
+input_name = 'impact_laminate20000n_new'; %
+% input_name = 'impact_spallation2'; %
+% input_name = 'impact_spallation3'; %20000, large h
+% input_name = 'impact_spallation4'; %20000, fix h
+% input_name = 'impact_spallation6'; %6000, hfixed for damage
+% input_name = 'impact_spallation7'; %15000, hfixed for damage, bludge to big
+% input_name = 'impact_spallation8'; %20000, hfixed for damage,
+% input_name = 'impact_spallation9'; %20000, hfixed for damage, right damage formate
 
 
 in_namedir = ['data/',input_name];
@@ -14,12 +21,12 @@ in_namedir = ['data/',input_name];
 ps1 = SPHlab_scenario(in_namedir);
 ps1.plotconfig.figurename = input_name;
 ps1.plotconfig.latexplot = true;
-ps1.plot_quantity = 'x';
+ps1.plot_quantity = 'p';
 ps1.fixaxes.p = 5*[-1e8,1e8];
 ps1.fixaxes.e = 1*[-1e5,1e5];
 ps1.fixaxes.d = [1000,2900];
 
-ps1.plot_style.d = 'patches';
+ps1.plot_style.p = 'patches';
 
 % ps1.plot_style.x = 'ringcloud';
 ps1.plotconfig.figuresize = []; %empty: make default
@@ -72,12 +79,16 @@ for i=I;
     obj_particles1.IO.read_hdf5(obj_particles1,in_namedir,group);    
     obj_particles1.IO.do(obj_particles1,true,false);
 
-%     obj_part#icles1.IO.plot_data(obj_particles1,'p'); 
+%     obj_particles1.IO.plot_data(obj_particles1,'p'); 
 %     obj_particles1.IO.savefigure(group(2:end),'','png')
     disp(group)   
 %         xlim([-0.015,0.02]);
-    
-    
+%     keyboard
+%     [a,b]=max(obj_particles1.hj);
+%     obj_particles1.pj(b)
+%     a
+%     b
+% keyboard
 end
 obj_particles1.IO.finalize();
 

@@ -198,7 +198,7 @@ classdef SPHlab_scenario < handle
            
            
            disp('---------------------------------');
-           disp('--------------SPH----------------');
+           disp('-------------SPHlab--------------');
            disp('---------------------------------');
         end   
         
@@ -306,7 +306,7 @@ classdef SPHlab_scenario < handle
                     if size(obj.geo(i).omega_geo,1) == 1 % circle
                         [x,Vparticle] = add_circle(obj,obj.geo(i).omega_geo, obj.geo(i).N);
                     else %rectangle                        
-                        hexa=true; %make hexagonal particle distribution
+                        hexa=false; %make hexagonal particle distribution
                         [x,Vparticle] = add_rectangle(obj,obj.geo(i).omega_geo, obj.geo(i).N,hexa);
                     end
                 else
@@ -402,11 +402,19 @@ classdef SPHlab_scenario < handle
                      
                     if hexa
                         %hexa:
-                        %move all a bit to the left
-                        t1=t1-0.25*dxy(1);
-                        %move every second row to the right
-                        I=1:2:size(t1,2);
-                        t1(:,I)=t1(:,I)+0.5*dxy(1);
+%                         %move all a bit to the left
+%                         t1=t1-0.25*dxy(1);
+%                         %move every second row to the right
+%                         I=1:2:size(t1,2);
+%                         t1(:,I)=t1(:,I)+0.5*dxy(1);
+%                         
+                        
+                        %hexa: (2nd version vertical shift)
+                        %move all a bit to the bottom
+                        t2=t2-0.25*dxy(2);
+                        %move every second row to the top
+                        I=1:2:size(t2,1);
+                        t2(I,:)=t2(I,:)+0.5*dxy(2);                        
                     end
                     xx = reshape(t1,[1,Np]); 
                     yy = reshape(t2,[1,Np]);

@@ -241,6 +241,12 @@ classdef SPHlab_IO < handle
             % save data from one special point
             save_pointdata(obj,obj_particles)
 
+            
+            % plot
+%             figure(10)
+%             plot(obj_particles.t, obj_particles.pj(4411),'b.')
+%             hold on;
+%             drawnow
         end       
         %%
         function finalize (obj)
@@ -759,15 +765,24 @@ classdef SPHlab_IO < handle
                        
             function scatterPoints=plot_patches(x,y,z,sizeOfCirlce,opacity)
                 tt= 0:pi/10:2*pi;
+                rep_tt = repmat(tt',[ 1, size(x,1)]);
                 rep_x = repmat(x',[size(tt,2),1]);
                 rep_y = repmat(y',[size(tt,2),1]);
                 rep_r = repmat(sizeOfCirlce',[size(tt,2),1]);
-                rep_z = repmat(z',[size(tt,2),1]);
-                rep_tt = repmat(tt',[ 1, size(x,1)]);
-                scatterPoints = patch((rep_r.*sin(rep_tt)+ rep_x),...
-                                      (rep_r.*cos(rep_tt)+rep_y),...
-                                       rep_z,'edgecolor','none');
-                alpha(scatterPoints,opacity);
+                if z == inf  %damage
+                    if ~isempty(x)                       
+                       rep_z = rep_x*0;
+                       scatterPoints = patch((rep_r.*sin(rep_tt)+ rep_x),...
+                                             (rep_r.*cos(rep_tt)+rep_y),...
+                                              rep_z,'facecolor','none','edgecolor','k');%'facecolor','k');  
+                    end
+                else                    
+                    rep_z = repmat(z',[size(tt,2),1]);
+                    scatterPoints = patch((rep_r.*sin(rep_tt)+ rep_x),...
+                                          (rep_r.*cos(rep_tt)+rep_y),...
+                                           rep_z,'edgecolor','none');
+                    alpha(scatterPoints,opacity);                                     
+                end
             end 
                      
             function [dat_max,p]=plot_field(x,dat)
@@ -918,7 +933,7 @@ classdef SPHlab_IO < handle
                    end
                end   
              end
-             
+
           %% --------------------------------------------
           %% --------------------------------------------  
           %% start of routine
@@ -935,7 +950,7 @@ classdef SPHlab_IO < handle
             
            if ~isempty(obj.mfigure)
                %do not change the focus (silent update of the figure)
-              %  set(groot,'CurrentFigure',obj.mfigure)               
+                set(groot,'CurrentFigure',obj.mfigure)               
            else
                figure('Color',[1 1 1]); %open new figure
            end
@@ -1155,7 +1170,13 @@ classdef SPHlab_IO < handle
                             opacity = 0.3;
                             sizeOfCirlce = obj_p.hj;
 
-                            plot_patches(x(:,1),x(:,2),obj_p.(dat_name),sizeOfCirlce,opacity);
+                            plot_patches(x(:,1),...
+                                         x(:,2),...
+                                         obj_p.(dat_name),sizeOfCirlce,opacity);
+                            %damaged particles
+                            plot_patches(x(logical(obj_p.Idamage),1),...
+                                         x(logical(obj_p.Idamage),2),...
+                                         inf,sizeOfCirlce(logical(obj_p.Idamage)),opacity);
 
                             if ~isempty(limaxes)
                                  caxis(limaxes)
@@ -1183,7 +1204,8 @@ classdef SPHlab_IO < handle
                    if addcolorbar
                         h=colorbar;                           
                         h=ylabel(h, axisname); 
-                        colormap jet        
+%                         colormap jet                         
+                        colormap parula
                         if obj.plotconfig.latexplot
                             set(h,obj.Sfont,obj.Sint);
                         end
@@ -1475,7 +1497,10 @@ classdef SPHlab_IO < handle
                 %time
                 obj_data.t = str2double(group(2:end));                
             end
+  
+            obj_data.Idamage = readVariable('Idamage',filename,group);
             
+
             % take care for the indices
             N = size(obj_data.Xj,1);
             
@@ -1520,7 +1545,8 @@ classdef SPHlab_IO < handle
             writeVariable(filename,time,'p',obj_p.pj);                        
             writeVariable(filename,time,'Gamma',obj_p.MG_Gammaj);                        
             writeVariable(filename,time,'S',obj_p.MG_Sj);  
-            
+            writeVariable(filename,time,'Idamage',double(obj_p.Idamage));  
+
             if obj_p.dim == 2
                 writeVariable(filename,time,'y',obj_p.Xj(:,2));
                 writeVariable(filename,time,'v',obj_p.vj(:,2));                

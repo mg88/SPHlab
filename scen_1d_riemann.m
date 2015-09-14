@@ -8,7 +8,7 @@
 ps = SPHlab_scenario();
 
 %% general parameter
-ps.Ntot      = 600; %500
+ps.Ntot      = 200; %500
 ps.equalmass = true;
 % ps.dt        = 1e-5;
 % ps.dtfactor  = 0.1;
